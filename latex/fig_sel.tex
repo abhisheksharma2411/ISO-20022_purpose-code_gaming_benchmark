@@ -1,0 +1,19 @@
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.94\columnwidth, height=4.1cm,
+  ybar=1.2pt, bar width=5pt,
+  ylabel={SEL},
+  symbolic x coords={P1a,P1b,P1c,P1d,P2a,P2b,P2c,P2d,P3a,P3b,P3c},
+  xtick=data, ymin=0.95, ymax=1.98,
+  grid=both, grid style={black!12},
+  legend style={at={(0.02,0.97)},anchor=north west,font=\tiny,
+                draw=black!30,legend columns=2},
+  label style={font=\scriptsize}, tick label style={font=\tiny}
+]
+\addplot[fill=black!25] coordinates {(P1a,1.743) (P1b,1.653) (P1c,1.614) (P1d,1.652) (P2a,1.450) (P2b,1.498) (P2c,1.566) (P2d,1.487) (P3a,1.768) (P3b,1.776) (P3c,1.761)};
+\addlegendentry{$\mathrm{SEL}$ (no detector)}
+\addplot[fill=black!60] coordinates {(P1a,1.650) (P1b,1.589) (P1c,1.601) (P1d,1.584) (P2a,1.438) (P2b,1.486) (P2c,1.553) (P2d,1.439) (P3a,1.740) (P3b,1.745) (P3c,1.752)};
+\addlegendentry{$\mathrm{SEL_{res}}$ with $D_4$}
+\end{axis}
+\end{tikzpicture}
+%(P1a,1.743) +- (0,0.075) (P1b,1.653) +- (0,0.048) (P1c,1.614) +- (0,0.040) (P1d,1.652) +- (0,0.057) (P2a,1.450) +- (0,0.021) (P2b,1.498) +- (0,0.033) (P2c,1.566) +- (0,0.049) (P2d,1.487) +- (0,0.022) (P3a,1.768) +- (0,0.069) (P3b,1.776) +- (0,0.021) (P3c,1.761) +- (0,0.063)

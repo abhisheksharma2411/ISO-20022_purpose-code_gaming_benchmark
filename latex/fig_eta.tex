@@ -1,0 +1,16 @@
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\columnwidth, height=4.1cm,
+  xlabel={Accidental-defect rate $\eta$}, ylabel={AUC (gaming detection)},
+  ymin=0.5, ymax=1.0, grid=both, grid style={black!12},
+  legend style={at={(0.98,0.97)},anchor=north east,font=\tiny,draw=black!30},
+  label style={font=\scriptsize}, tick label style={font=\tiny}
+]
+\addplot[dashed,mark=*,mark size=1pt] coordinates {(0.020,0.7645) (0.050,0.7688) (0.100,0.7630) (0.150,0.7549) (0.250,0.7520) (0.400,0.7369)};
+\addlegendentry{$D_1$ rules C1--C4}
+\addplot[solid,mark=*,mark size=1pt] coordinates {(0.020,0.7927) (0.050,0.7876) (0.100,0.7695) (0.150,0.7523) (0.250,0.7325) (0.400,0.7237)};
+\addlegendentry{$D_3$ anomaly C3--C5}
+\addplot[solid,line width=1.1pt,mark=*,mark size=1pt] coordinates {(0.020,0.7923) (0.050,0.7915) (0.100,0.7812) (0.150,0.7693) (0.250,0.7561) (0.400,0.7418)};
+\addlegendentry{$D_4$ $D_1 \cup D_3$}
+\end{axis}
+\end{tikzpicture}

@@ -1,0 +1,14 @@
+{
+  "checked": 20000,
+  "valid": 20000,
+  "errors": [],
+  "by_type": {
+    "pain.001": 9936,
+    "pacs.008": 10064
+  },
+  "note": "seed 9 corpus, first 20000 messages, official ISO 20022 XSDs",
+  "xsd_sha256": {
+    "pain.001.001.09.xsd": "de038b373e47b0077b1832ddd81f4b2f1eb25d35721f62da1e38b7f5a09fda24",
+    "pacs.008.001.08.xsd": "cf048155f70cacd03f1f1dfadf66cba8752be93c249c267351782fd6adb023f7"
+  }
+}
