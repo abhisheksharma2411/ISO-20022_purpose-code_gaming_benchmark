@@ -1,0 +1,18 @@
+# ISO 20022 schemas are NOT redistributable -- download from iso20022.org
+xsd/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# latex build artefacts
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.toc
