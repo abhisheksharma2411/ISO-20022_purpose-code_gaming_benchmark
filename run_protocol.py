@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import time
 
 import numpy as np
@@ -43,12 +44,33 @@ OUT = "results"
 TEX = "latex"
 DET_LABEL = {
     "D0": r"$D_0$ C1--C2 checks",
-    "D1": r"$D_1$ rules C1--C4",
-    "D2": r"$D_2$ naive classifier",
-    "D3": r"$D_3$ anomaly C3--C5",
+    "D1": r"$D_1$ fixed rules",
+    "D2": r"$D_2$ supervised GBM",
+    "D3": r"$D_3$ isolation forest",
     "D4": r"$D_4$ combined",
+    "D5": r"$D_5$ LOF",
+    "D6": r"$D_6$ logistic",
 }
-NEEDS_LABELS = {"D0": "no", "D1": "no", "D2": "yes", "D3": "no", "D4": "no"}
+NEEDS_LABELS = {"D0": "no", "D1": "no", "D2": "yes", "D3": "no", "D4": "no",
+                "D5": "no", "D6": "yes"}
+DETS = tuple(DET_LABEL)
+GIT_SHA = "unversioned"
+
+
+def _git_sha():
+    """Commit of the tree that produced this run, with -dirty when tracked
+    files differ from HEAD. Captured once at start-up, before the run writes
+    its own result files."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=here,
+                                      text=True).strip()
+        st = subprocess.run(["git", "status", "--porcelain",
+                             "--untracked-files=no"], cwd=here,
+                            capture_output=True, text=True).stdout.strip()
+        return sha + ("-dirty" if st else "")
+    except Exception:
+        return "unversioned"
 
 
 def log(msg):
@@ -64,7 +86,7 @@ def save(tag, obj):
 
 
 def run_one(n, eta, rho, seed, k, lam, temp, knowledge, pi_floor,
-            target_pi0, boot, loo=False, name_share=0.6):
+            target_pi0, boot, loo=False, name_share=0.6, extra=True):
     B.PI_FLOOR = pi_floor
     B.TEMP = temp
     B.P_NAME, B.TAU = 0.90, 0.55          # reset before each calibration
@@ -73,13 +95,14 @@ def run_one(n, eta, rho, seed, k, lam, temp, knowledge, pi_floor,
                            name_share=name_share,
                            n_probe=min(4000, max(500, n)))
     msgs = B.generate(n, eta, rho, seed, k, lam, knowledge)
-    res = B.evaluate(msgs, seed=seed, boot=boot)
+    res = B.evaluate(msgs, seed=seed, boot=boot, extra=extra)
     if loo:
-        res["loo"] = B.evaluate_loo(msgs, seed=seed)
+        res["loo"] = B.evaluate_loo(msgs, seed=seed, extra=extra)
     res["config"] = dict(n=n, eta=eta, rho=rho, seed=seed, k=k, lam=lam,
                          temp=temp, knowledge=knowledge, pi_floor=pi_floor,
                          target_pi0=target_pi0, name_share=name_share,
-                         solved_P_NAME=B.P_NAME, solved_TAU=B.TAU)
+                         solved_P_NAME=B.P_NAME, solved_TAU=B.TAU,
+                         git_commit=GIT_SHA, cross_fit="2-fold by row parity")
     return res, msgs
 
 
@@ -87,18 +110,26 @@ def run_one(n, eta, rho, seed, k, lam, temp, knowledge, pi_floor,
 def emit_table1(mains, path):
     """Main detector table: mean AUC and exact-capacity TPR over seeds."""
     rows = []
-    for d in ("D0", "D1", "D2", "D3", "D4"):
+    for d in DETS:
+        if d not in mains[0]["detectors"]:
+            continue
         auc = np.array([r["detectors"][d]["auc"] for r in mains])
         t1 = np.array([r["detectors"][d]["tpr@0.01"] for r in mains])
         t01 = np.array([r["detectors"][d]["tpr@0.001"] for r in mains])
         rows.append(
             f"{DET_LABEL[d]} & {NEEDS_LABELS[d]} & "
-            f"{auc.mean():.3f} & {t1.mean():.3f} & {t01.mean():.3f} " + r" \\")
+            f"{auc.mean():.3f} ({auc.min():.3f}--{auc.max():.3f}) & "
+            f"{t1.mean():.3f} ({t1.min():.3f}--{t1.max():.3f}) & "
+            f"{t01.mean():.3f} " + r" \\")
+    c1 = np.mean([r["tpr_ceiling@0.01"] for r in mains])
+    c01 = np.mean([r["tpr_ceiling@0.001"] for r in mains])
+    rows.append(f"Capacity ceiling & -- & -- & {c1:.3f} & {c01:.3f} " + r" \\")
     body = "\n".join(rows)
     seeds = ", ".join(str(r["config"]["seed"]) for r in mains)
-    note = (f"% mean over seeds {seeds}; n={mains[0]['config']['n']}, "
+    note = (f"% mean (min--max) over seeds {seeds}; n={mains[0]['config']['n']}, "
             f"eta={mains[0]['config']['eta']}; TPR uses exact expected "
-            "capacity with label-blind tie-breaking\n")
+            "capacity with label-blind tie-breaking; learned detectors are "
+            "2-fold cross-fitted\n")
     open(path, "w").write(note + body + "\n")
     return body
 
@@ -208,8 +239,11 @@ def emit_fig_sel(mains, path):
 
 def emit_fig_eta(sweep, path):
     plots = []
-    styles = {"D1": "dashed", "D3": "solid", "D4": "solid,line width=1.1pt"}
-    for d in ("D1", "D3", "D4"):
+    styles = {"D1": "dashed", "D3": "solid", "D4": "solid,line width=1.1pt",
+              "D5": "dotted,line width=1.0pt"}
+    for d in ("D1", "D3", "D4", "D5"):
+        if d not in sweep[0][1]["detectors"]:
+            continue
         pts = " ".join(f"({eta:.3f},{r['detectors'][d]['auc']:.4f})"
                        for eta, r in sweep)
         plots.append(f"\\addplot[{styles[d]},mark=*,mark size=1pt] "
@@ -250,7 +284,13 @@ def main():
     ap.add_argument("--boot", type=int, default=1000)
     ap.add_argument("--xsd-dir", default=None)
     ap.add_argument("--emit-xml", type=int, default=2000)
+    ap.add_argument("--out", default="results", help="results directory")
+    ap.add_argument("--tex", default="latex", help="LaTeX fragment directory")
     a = ap.parse_args()
+    global OUT, TEX, GIT_SHA
+    OUT, TEX = a.out, a.tex
+    GIT_SHA = _git_sha()
+    log(f"git commit: {GIT_SHA}")
 
     n = a.n or (6000 if a.quick else 200_000)
     if a.quick:
@@ -304,14 +344,18 @@ def main():
         vals = [item[fam] for item in loos if isinstance(item.get(fam), dict)
                 and "D4" in item[fam] and "n_pure" in item[fam]]
         if vals:
+            dets = [d for d in DETS if d in vals[0]]
             loo_avg[fam] = {d: float(np.mean([v[d] for v in vals]))
-                            for d in ("D0", "D1", "D2", "D3", "D4")}
-            for d in ("D0", "D1", "D2", "D3", "D4"):
+                            for d in dets}
+            for d in dets:
                 loo_avg[fam][d + "_matched_in"] = float(
                     np.mean([v[d + "_matched_in"] for v in vals]))
                 loo_avg[fam][d + "_drop"] = float(
                     np.mean([v[d + "_drop"] for v in vals]))
+                loo_avg[fam][d + "_per_seed"] = [
+                    [v[d + "_matched_in"], v[d]] for v in vals]
             loo_avg[fam]["n_pure"] = float(np.mean([v["n_pure"] for v in vals]))
+            loo_avg[fam]["n_pure_per_seed"] = [v["n_pure"] for v in vals]
             loo_avg[fam]["purity"] = float(np.mean([v["purity"] for v in vals]))
     save("phase2_loo", loo_avg)
 
@@ -359,6 +403,30 @@ def main():
          [{"factor": f, "setting": s, "detectors": r["detectors"]}
           for f, s, r in abl])
 
+    # -- phase 5: calibration grid pi_0 x name-share ------------------------
+    log("phase 5: calibration grid (pi_0 x name-share)")
+    grid = {}
+    for tgt in (0.30, 0.45, 0.60):
+        for share in (0.4, 0.6, 0.8):
+            r, _ = run_one(n // 2, a.eta, a.rho, a.seeds[0], a.k, a.lam, a.temp,
+                           "grey", a.pi_floor, tgt, boot=(20 if a.quick else 100),
+                           name_share=share, extra=False)
+            sels = {kk: v["SEL"] for kk, v in r["sel"].items()
+                    if not kk.startswith("_")}
+            grid[f"pi0={tgt},share={share}"] = {
+                "target_pi0": tgt, "name_share": share,
+                "P_NAME": r["config"]["solved_P_NAME"],
+                "TAU": r["config"]["solved_TAU"],
+                "detectors": r["detectors"],
+                "SEL_by_primitive": sels,
+                "SEL_min": min(sels.values()) if sels else None,
+                "SEL_max": max(sels.values()) if sels else None}
+            log(f"  pi0={tgt} share={share}: D4 AUC="
+                f"{r['detectors']['D4']['auc']:.3f} SEL "
+                f"{grid[f'pi0={tgt},share={share}']['SEL_min']:.2f}--"
+                f"{grid[f'pi0={tgt},share={share}']['SEL_max']:.2f}")
+    save("phase5_calibration_grid", grid)
+
     # -- phase 6: XML corpus + XSD ------------------------------------------
     if a.emit_xml and last_msgs:
         log("phase 6: XML corpus")
@@ -380,6 +448,62 @@ def main():
     emit_fig_roc(mains[0], os.path.join(TEX, "fig_roc.tex"))
     emit_fig_sel(mains, os.path.join(TEX, "fig_sel.tex"))
     emit_fig_eta(sweep, os.path.join(TEX, "fig_eta.tex"))
+
+    # -- machine-readable summary used by verify_claims.py ------------------
+    dets_present = [d for d in DETS if d in mains[0]["detectors"]]
+    summ = {"git_commit": GIT_SHA, "seeds": a.seeds, "n_each": n,
+            "config": {kk: v for kk, v in mains[0]["config"].items()
+                       if kk not in ("seed",)},
+            "n_gamed": [r["n_gamed"] for r in mains],
+            "n_illicit": [r["n_illicit"] for r in mains],
+            "n_unevaded_illicit": [r["sel"]["_baseline"]["n_unevaded_illicit"]
+                                   for r in mains],
+            "delta0": [r["sel"]["_baseline"]["delta0"] for r in mains],
+            "tpr_ceiling@0.01": float(np.mean([r["tpr_ceiling@0.01"]
+                                               for r in mains])),
+            "tpr_ceiling@0.001": float(np.mean([r["tpr_ceiling@0.001"]
+                                                for r in mains])),
+            "detectors": {}, "sel": {}, "sel_D5": {},
+            "loo": loo_avg,
+            "eta_sweep": {str(e): {d: r["detectors"][d]["auc"]
+                                   for d in dets_present} for e, r in sweep},
+            "ablations": [{"factor": f, "setting": st,
+                           "D4_auc": r["detectors"]["D4"]["auc"],
+                           "D5_auc": r["detectors"].get("D5", {}).get("auc")}
+                          for f, st, r in abl],
+            "grid": {kk: {"D4_auc": v["detectors"]["D4"]["auc"],
+                          "SEL_min": v["SEL_min"], "SEL_max": v["SEL_max"]}
+                     for kk, v in grid.items()}}
+    for d in dets_present:
+        rows = [r["detectors"][d] for r in mains]
+        ent = {}
+        for met in ("auc", "tpr@0.01", "tpr@0.001", "benign_alerts_per_M@0.01",
+                    "benign_alerts_per_M@0.001"):
+            vals = [row[met] for row in rows]
+            ent[met] = float(np.mean(vals))
+            ent[met + "_per_seed"] = vals
+            ent[met + "_min"], ent[met + "_max"] = float(min(vals)), float(max(vals))
+        for met in ("auc_ci95", "tpr@0.01_ci95", "tpr@0.001_ci95"):
+            if met in rows[0]:
+                ent[met + "_per_seed"] = [row[met] for row in rows]
+        summ["detectors"][d] = ent
+    for key in ("sel", "sel_D5"):
+        if key not in mains[0]:
+            continue
+        for p in B.PRIMITIVES:
+            if not all(p in r[key] for r in mains):
+                continue
+            summ[key][p] = {
+                "n_mean": float(np.mean([r[key][p]["n"] for r in mains])),
+                "SEL": float(np.mean([r[key][p]["SEL"] for r in mains])),
+                "SEL_res": float(np.mean([r[key][p]["SEL_res"] for r in mains])),
+                "detect_rate": float(np.mean([r[key][p]["detect_rate"]
+                                              for r in mains])),
+                "SEL_ci_per_seed": [[r[key][p]["SEL_lo"], r[key][p]["SEL_hi"]]
+                                    for r in mains],
+                "SEL_res_ci_per_seed": [[r[key][p]["SEL_res_lo"],
+                                         r[key][p]["SEL_res_hi"]] for r in mains]}
+    save("summary", summ)
 
     summary = f"""# Verified protocol summary
 

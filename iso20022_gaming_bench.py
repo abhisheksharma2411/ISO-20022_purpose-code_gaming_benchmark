@@ -553,11 +553,18 @@ FEATURE_NAMES = ["c1_codelist", "c2_completeness", "c3_crossfield",
 
 
 def build_history(msgs):
+    """Pair-level purpose counts over ALL messages of the corpus.
+
+    No gaming label is used. An earlier version excluded gamed messages, so a
+    benign message's own purpose was counted in its pair history while a
+    gamed message's was not: a label leak into C5. features() removes the
+    message's own contribution (leave-self-out), so C5 is the share of the
+    pair's OTHER messages that declared a different purpose.
+    """
     h = {}
     for m in msgs:
-        if not m.gamed:
-            h.setdefault(m.pair_id, {})
-            h[m.pair_id][m.purpose] = h[m.pair_id].get(m.purpose, 0) + 1
+        d = h.setdefault(m.pair_id, {})
+        d[m.purpose] = d.get(m.purpose, 0) + 1
     return h
 
 
@@ -572,8 +579,9 @@ def features(m: Message, history: dict):
     c4 = float(m.purpose == "SALA"
                and any(w in m.rmt_ustrd for w in ("GOODS", "INVOICE", "SHIPMENT")))
     hist = history.get(m.pair_id, {})
-    tot = sum(hist.values()) or 1
-    c5 = 1.0 - (hist.get(m.purpose, 0) / tot)
+    others = sum(hist.values()) - 1                 # leave-self-out
+    same = hist.get(m.purpose, 0) - 1
+    c5 = 1.0 - (same / others) if others > 0 else 0.0
     return [c1, c2, c3, c4, c5,
             float(m.purpose is None), float(len(m.rmt_ustrd)),
             float(len(m.adr_line)), float(m.n_splits),
@@ -607,36 +615,67 @@ def _z(v):
     return (v - v.mean()) / (v.std() + 1e-9)
 
 
-def detector_scores(msgs, seed=0, train_mask=None):
-    """Return ({name: score array}, y). train_mask selects rows the LEARNED
-    detectors (D2, D3) may train on; scores are produced for every row."""
+def detector_scores(msgs, seed=0, train_mask=None, extra=False):
+    """Return ({name: score array}, y).
+
+    Learned detectors are two-fold cross-fitted. Rows are split by index
+    parity; each learned model is fitted on one fold (further restricted by
+    train_mask) and scores only the other fold, so no row is scored by a model
+    that saw it. An earlier version fitted on the even rows and scored every
+    row, which placed half of D2's training data inside its own test set and
+    inflated its in-distribution AUC by about 0.03 at 50k rows.
+
+    train_mask removes rows that the learned detectors may never train on
+    (used by the held-out-family experiment). D0 and D1 are fixed rules and
+    need no fitting. extra=True adds two standard reference methods, D5 (local
+    outlier factor on the benign C1-C5 feature vector) and D6 (logistic
+    regression on D2's raw features), cross-fitted the same way.
+    """
     from sklearn.ensemble import IsolationForest, HistGradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.neighbors import LocalOutlierFactor
+    from sklearn.preprocessing import StandardScaler
 
     hist = build_history(msgs)
     X = np.array([features(m, hist) for m in msgs])
     R = np.array([raw_features(m) for m in msgs])
     y = np.array([int(m.gamed) for m in msgs])
+    n = len(msgs)
     if train_mask is None:
-        train_mask = np.ones(len(msgs), dtype=bool)
+        train_mask = np.ones(n, dtype=bool)
+    fold = np.arange(n) % 2
 
     d0 = X[:, 0] + (X[:, 1] > 1).astype(float)                 # C1 + hard C2
     d1 = X[:, 0] + 0.5 * X[:, 1] + X[:, 2] + 1.5 * X[:, 3]     # rules C1-C4
-
-    tr = train_mask & (np.arange(len(msgs)) % 2 == 0)
-    if y[tr].sum() >= 10 and (y[tr] == 0).sum() >= 10:
-        gb = HistGradientBoostingClassifier(random_state=seed,
-                                            max_iter=150).fit(R[tr], y[tr])
-        d2 = gb.predict_proba(R)[:, 1]
-    else:
-        d2 = np.zeros(len(msgs))
-
-    benign_tr = train_mask & (y == 0)
-    iso = IsolationForest(random_state=seed, n_estimators=200,
-                          contamination=0.05).fit(X[benign_tr])
-    d3 = -iso.score_samples(X)
+    d2, d3, d5, d6 = (np.zeros(n) for _ in range(4))
+    for f in (0, 1):
+        te = fold == f
+        tr = train_mask & ~te
+        labelled = y[tr].sum() >= 10 and (y[tr] == 0).sum() >= 10
+        if labelled:
+            gb = HistGradientBoostingClassifier(random_state=seed,
+                                                max_iter=150).fit(R[tr], y[tr])
+            d2[te] = gb.predict_proba(R[te])[:, 1]
+        benign_tr = tr & (y == 0)
+        iso = IsolationForest(random_state=seed, n_estimators=200,
+                              contamination=0.05).fit(X[benign_tr])
+        d3[te] = -iso.score_samples(X[te])
+        if extra:
+            sc = StandardScaler().fit(X[benign_tr])
+            lof = LocalOutlierFactor(n_neighbors=20, novelty=True)
+            lof.fit(sc.transform(X[benign_tr]))
+            d5[te] = -lof.score_samples(sc.transform(X[te]))
+            if labelled:
+                scr = StandardScaler().fit(R[tr])
+                lr = LogisticRegression(max_iter=1000).fit(scr.transform(R[tr]),
+                                                           y[tr])
+                d6[te] = lr.predict_proba(scr.transform(R[te]))[:, 1]
 
     d4 = _z(d1) + _z(d3)
-    return {"D0": d0, "D1": d1, "D2": d2, "D3": d3, "D4": d4}, y
+    out = {"D0": d0, "D1": d1, "D2": d2, "D3": d3, "D4": d4}
+    if extra:
+        out["D5"], out["D6"] = d5, d6
+    return out, y
 
 
 def alert_weights(score, budget):
@@ -719,6 +758,38 @@ def sel_table(msgs, score, y, budget=0.01, n_boot=1000, seed=0, min_n=30):
     return out
 
 
+def _midrank(x):
+    u, inv, cnt = np.unique(x, return_inverse=True, return_counts=True)
+    start = np.cumsum(cnt) - cnt
+    return (start + (cnt - 1) / 2.0 + 1.0)[inv]
+
+
+def auc_delong_ci(y, score, z=1.96):
+    """AUC with a DeLong 95% interval via the rank formulation of Sun and Xu
+    (2014). Structural components: for each positive, the share of negatives
+    ranked below it; for each negative, the share of positives ranked above."""
+    pos, neg = score[y == 1], score[y == 0]
+    m, n = len(pos), len(neg)
+    tz = _midrank(np.concatenate([pos, neg]))
+    v01 = (tz[:m] - _midrank(pos)) / n
+    v10 = 1.0 - (tz[m:] - _midrank(neg)) / m
+    auc = float(v01.mean())
+    se = float(np.sqrt(v01.var(ddof=1) / m + v10.var(ddof=1) / n))
+    return auc, max(0.0, auc - z * se), min(1.0, auc + z * se), se
+
+
+def tpr_bootstrap_ci(score, y, budget, n_boot=200, seed=0):
+    """Record-level bootstrap of exact-capacity TPR (threshold re-solved in
+    every resample), 2.5th and 97.5th percentiles."""
+    rng = np.random.default_rng(seed)
+    n = len(y)
+    vals = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, n)
+        vals.append(tpr_at_budget(score[idx], y[idx], budget))
+    return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
+
+
 def roc_points(score, y, n=40):
     """FPR/TPR pairs on a log-spaced FPR grid, ready for pgfplots."""
     from sklearn.metrics import roc_curve
@@ -727,27 +798,41 @@ def roc_points(score, y, n=40):
     return [(float(g), float(np.interp(g, fpr, tpr))) for g in grid]
 
 
-def evaluate(msgs, seed=0, budgets=(0.01, 0.001), boot=1000, want_roc=True):
+def evaluate(msgs, seed=0, budgets=(0.01, 0.001), boot=1000, want_roc=True,
+             extra=False):
     from sklearn.metrics import roc_auc_score
-    scores, y = detector_scores(msgs, seed=seed)
+    scores, y = detector_scores(msgs, seed=seed, extra=extra)
     if y.sum() == 0:
         raise SystemExit("no gamed messages: raise --rho or lower --lam")
     res, roc = {}, {}
+    n_boot_metrics = min(int(boot), 200)
     for name, s in scores.items():
         row = {"auc": float(roc_auc_score(y, s))}
+        if n_boot_metrics > 0:
+            _, lo, hi, se = auc_delong_ci(y, s)
+            row["auc_ci95"] = [lo, hi]
+            row["auc_se"] = se
         for b in budgets:
             row[f"tpr@{b}"] = tpr_at_budget(s, y, b)
             row[f"benign_alerts_per_M@{b}"] = alerts_per_million_benign(s, y, b)
+            if n_boot_metrics > 0:
+                row[f"tpr@{b}_ci95"] = list(
+                    tpr_bootstrap_ci(s, y, b, n_boot=n_boot_metrics, seed=seed))
         res[name] = row
         if want_roc:
             roc[name] = roc_points(s, y)
-    return {"detectors": res, "roc": roc,
-            "sel": sel_table(msgs, scores["D4"], y, seed=seed, n_boot=boot),
-            "n": len(msgs), "n_gamed": int(y.sum()),
-            "n_illicit": int(sum(m.illicit for m in msgs))}
+    out = {"detectors": res, "roc": roc,
+           "sel": sel_table(msgs, scores["D4"], y, seed=seed, n_boot=boot),
+           "n": len(msgs), "n_gamed": int(y.sum()),
+           "n_illicit": int(sum(m.illicit for m in msgs))}
+    for b in budgets:
+        out[f"tpr_ceiling@{b}"] = float(min(1.0, b * len(msgs) / max(1, y.sum())))
+    if extra and "D5" in scores:
+        out["sel_D5"] = sel_table(msgs, scores["D5"], y, seed=seed, n_boot=boot)
+    return out
 
 
-def evaluate_loo(msgs, seed=0):
+def evaluate_loo(msgs, seed=0, extra=False):
     """Leave-one-primitive-family-out, reported against a MATCHED baseline.
 
     Two corrections over the naive version:
@@ -778,13 +863,14 @@ def evaluate_loo(msgs, seed=0):
             continue
         keep = (~gamed) | pure              # benign + this family, pure only
         # held out: learned detectors never see ANY message touching the family
-        held, y = detector_scores(msgs, seed=seed, train_mask=~any_fam)
+        held, y = detector_scores(msgs, seed=seed, train_mask=~any_fam,
+                                  extra=extra)
         # matched baseline: same rows, model trained on everything
-        full, _ = detector_scores(msgs, seed=seed, train_mask=None)
+        full, _ = detector_scores(msgs, seed=seed, train_mask=None, extra=extra)
         yk = y[keep]
         row = {"n_pure": n_pure, "n_any": n_any,
                "purity": round(n_pure / max(1, n_any), 3)}
-        for d in ("D0", "D1", "D2", "D3", "D4"):
+        for d in held:
             a_in = float(roc_auc_score(yk, full[d][keep]))
             a_out = float(roc_auc_score(yk, held[d][keep]))
             row[d] = a_out
