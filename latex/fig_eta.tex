@@ -7,10 +7,12 @@
   label style={font=\scriptsize}, tick label style={font=\tiny}
 ]
 \addplot[dashed,mark=*,mark size=1pt] coordinates {(0.020,0.7645) (0.050,0.7594) (0.100,0.7527) (0.150,0.7482) (0.250,0.7412) (0.400,0.7170)};
-\addlegendentry{$D_1$ rules C1--C4}
-\addplot[solid,mark=*,mark size=1pt] coordinates {(0.020,0.7936) (0.050,0.7885) (0.100,0.7667) (0.150,0.7499) (0.250,0.7296) (0.400,0.7040)};
-\addlegendentry{$D_3$ anomaly C3--C5}
-\addplot[solid,line width=1.1pt,mark=*,mark size=1pt] coordinates {(0.020,0.8041) (0.050,0.7982) (0.100,0.7819) (0.150,0.7745) (0.250,0.7602) (0.400,0.7319)};
-\addlegendentry{$D_4$ $D_1 \cup D_3$}
+\addlegendentry{$D_1$ fixed rules}
+\addplot[solid,mark=*,mark size=1pt] coordinates {(0.020,0.7728) (0.050,0.7650) (0.100,0.7468) (0.150,0.7315) (0.250,0.7017) (0.400,0.6747)};
+\addlegendentry{$D_3$ isolation forest}
+\addplot[solid,line width=1.1pt,mark=*,mark size=1pt] coordinates {(0.020,0.7954) (0.050,0.7881) (0.100,0.7740) (0.150,0.7668) (0.250,0.7498) (0.400,0.7216)};
+\addlegendentry{$D_4$ combined}
+\addplot[dotted,line width=1.0pt,mark=*,mark size=1pt] coordinates {(0.020,0.8602) (0.050,0.8570) (0.100,0.8554) (0.150,0.8521) (0.250,0.8582) (0.400,0.8661)};
+\addlegendentry{$D_5$ LOF}
 \end{axis}
 \end{tikzpicture}
