@@ -1,0 +1,72 @@
+[15:56:54] git commit: 378369dbe6e0e6551642dbbf12af4bea04ff33d3
+[15:56:54] phase 0: calibration sweep
+[calibrate] P_NAME=0.1400 TAU=0.8906 floor=0.100 share=0.6 -> pi_0=0.2980 (name 0.140 / score 0.093) target 0.3 [OK]
+[15:57:05]   pi_0=0.3: mean SEL=1.214552612247684
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[15:57:16]   pi_0=0.45: mean SEL=1.4700130970581555
+[calibrate] P_NAME=0.3853 TAU=0.6650 floor=0.100 share=0.6 -> pi_0=0.6001 (name 0.385 / score 0.277) target 0.6 [OK]
+[15:57:28]   pi_0=0.6: mean SEL=1.8977711472030676
+[15:57:28] phase 1: main runs, n=200000, seeds=[7, 8, 9]
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[15:58:16]   seed 7: D4 AUC=0.767 gamed=10050
+[calibrate] P_NAME=0.2558 TAU=0.7734 floor=0.100 share=0.6 -> pi_0=0.4505 (name 0.256 / score 0.180) target 0.45 [OK]
+[15:59:03]   seed 8: D4 AUC=0.761 gamed=9795
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4501 (name 0.256 / score 0.179) target 0.45 [OK]
+[15:59:51]   seed 9: D4 AUC=0.757 gamed=9885
+[15:59:51] phase 2: leave-one-family-out at k=1
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[calibrate] P_NAME=0.2558 TAU=0.7734 floor=0.100 share=0.6 -> pi_0=0.4505 (name 0.256 / score 0.180) target 0.45 [OK]
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4501 (name 0.256 / score 0.179) target 0.45 [OK]
+[16:08:04] phase 3: eta sweep
+[calibrate] P_NAME=0.2558 TAU=0.7617 floor=0.100 share=0.6 -> pi_0=0.4493 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:08:28]   eta=0.02: D4 AUC=0.796
+[calibrate] P_NAME=0.2558 TAU=0.7559 floor=0.100 share=0.6 -> pi_0=0.4506 (name 0.256 / score 0.180) target 0.45 [OK]
+[16:08:52]   eta=0.05: D4 AUC=0.792
+[calibrate] P_NAME=0.2558 TAU=0.7559 floor=0.100 share=0.6 -> pi_0=0.4508 (name 0.256 / score 0.180) target 0.45 [OK]
+[16:09:13]   eta=0.1: D4 AUC=0.780
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:09:33]   eta=0.15: D4 AUC=0.770
+[calibrate] P_NAME=0.2558 TAU=0.7793 floor=0.100 share=0.6 -> pi_0=0.4505 (name 0.256 / score 0.180) target 0.45 [OK]
+[16:09:53]   eta=0.25: D4 AUC=0.747
+[calibrate] P_NAME=0.2558 TAU=0.7910 floor=0.100 share=0.6 -> pi_0=0.4508 (name 0.256 / score 0.180) target 0.45 [OK]
+[16:10:11]   eta=0.4: D4 AUC=0.730
+[16:10:11] phase 4: ablations
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:10:34]   P1 only: D4 AUC=0.843
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:10:56]   P2 only: D4 AUC=0.799
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:11:18]   P3 only: D4 AUC=0.488
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:11:41]   k=1: D4 AUC=0.649
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:12:04]   k=2: D4 AUC=0.770
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:12:32]   k=3: D4 AUC=0.844
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:12:55]   black-box: D4 AUC=0.728
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:13:19]   grey-box: D4 AUC=0.770
+[16:13:19] phase 5: calibration grid (pi_0 x name-share)
+[calibrate] P_NAME=0.0956 TAU=0.8145 floor=0.100 share=0.4 -> pi_0=0.3007 (name 0.096 / score 0.141) target 0.3 [OK]
+[16:13:32]   pi0=0.3 share=0.4: D4 AUC=0.802 SEL 1.13--1.41
+[calibrate] P_NAME=0.1400 TAU=0.8906 floor=0.100 share=0.6 -> pi_0=0.2980 (name 0.140 / score 0.093) target 0.3 [OK]
+[16:13:44]   pi0=0.3 share=0.6: D4 AUC=0.790 SEL 1.16--1.36
+[calibrate] P_NAME=0.1821 TAU=0.9961 floor=0.100 share=0.8 -> pi_0=0.2998 (name 0.182 / score 0.049) target 0.3 [OK]
+[16:13:57]   pi0=0.3 share=0.8: D4 AUC=0.790 SEL 1.19--1.29
+[calibrate] P_NAME=0.1788 TAU=0.6855 floor=0.100 share=0.4 -> pi_0=0.4496 (name 0.179 / score 0.255) target 0.45 [OK]
+[16:14:12]   pi0=0.45 share=0.4: D4 AUC=0.765 SEL 1.28--1.81
+[calibrate] P_NAME=0.2558 TAU=0.7676 floor=0.100 share=0.6 -> pi_0=0.4492 (name 0.256 / score 0.178) target 0.45 [OK]
+[16:14:25]   pi0=0.45 share=0.6: D4 AUC=0.770 SEL 1.32--1.79
+[calibrate] P_NAME=0.3256 TAU=0.8906 floor=0.100 share=0.8 -> pi_0=0.4495 (name 0.326 / score 0.093) target 0.45 [OK]
+[16:14:37]   pi0=0.45 share=0.8: D4 AUC=0.782 SEL 1.42--1.72
+[calibrate] P_NAME=0.2770 TAU=0.5742 floor=0.100 share=0.4 -> pi_0=0.5984 (name 0.277 / score 0.383) target 0.6 [OK]
+[16:14:51]   pi0=0.6 share=0.4: D4 AUC=0.749 SEL 1.44--2.51
+[calibrate] P_NAME=0.3853 TAU=0.6650 floor=0.100 share=0.6 -> pi_0=0.6001 (name 0.385 / score 0.277) target 0.6 [OK]
+[16:15:04]   pi0=0.6 share=0.6: D4 AUC=0.754 SEL 1.59--2.56
+[calibrate] P_NAME=0.4773 TAU=0.8027 floor=0.100 share=0.8 -> pi_0=0.5999 (name 0.477 / score 0.149) target 0.6 [OK]
+[16:15:17]   pi0=0.6 share=0.8: D4 AUC=0.771 SEL 1.83--2.48
+[16:15:17] phase 6: XML corpus
+[16:15:17]   wrote 2000 messages -> results/corpus_sample.jsonl
+[16:15:17] emitting LaTeX fragments
+[16:15:17] done in 1104s -> latex/SUMMARY.md

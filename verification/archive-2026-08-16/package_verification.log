@@ -1,0 +1,93 @@
+{
+  "exact_capacity_tie_test": "pass",
+  "xml_well_formed_and_ultimate_debtor_order": "pass",
+  "paper_values_match_verified_summary": {
+    "D0": [
+      "0.497",
+      "0.009",
+      "0.001"
+    ],
+    "D1": [
+      "0.750",
+      "0.105",
+      "0.020"
+    ],
+    "D2": [
+      "0.918",
+      "0.201",
+      "0.020"
+    ],
+    "D3": [
+      "0.752",
+      "0.040",
+      "0.007"
+    ],
+    "D4": [
+      "0.774",
+      "0.099",
+      "0.018"
+    ]
+  },
+  "page_count": {
+    "named": 5,
+    "anonymous": 5
+  },
+  "anonymous_scrub": "pass",
+  "internal_style_risk": {
+    "file": "/mnt/data/F7_verified_release/F7_ISO20022_Purpose_Code_Gaming_Revised.tex",
+    "note": "Internal prose-style heuristic; not a vendor AI detector.",
+    "sentences": 172,
+    "mean_words_per_sentence": 17.66,
+    "sentence_length_sd": 9.25,
+    "sentence_length_cv": 0.524,
+    "short_sentence_share": 0.233,
+    "long_sentence_share": 0.023,
+    "repeated_opening_share": 0.035,
+    "most_common_repeated_openings": [
+      [
+        "this is a",
+        2
+      ],
+      [
+        "the main setting",
+        2
+      ],
+      [
+        "c c catch",
+        2
+      ],
+      [
+        "ieeetran cite amsmath",
+        1
+      ],
+      [
+        "this paper studies",
+        1
+      ],
+      [
+        "we define eleven",
+        1
+      ],
+      [
+        "a seeded generator",
+        1
+      ],
+      [
+        "it enforces field",
+        1
+      ]
+    ],
+    "formulaic_phrases": {
+      "this paper": 2
+    },
+    "absolute_claims": {
+      "never": 0,
+      "proves": 0
+    },
+    "signposts": {
+      "second": 1,
+      "this paper makes": 1
+    },
+    "style_risk_score_out_of_10": 1.23
+  }
+}

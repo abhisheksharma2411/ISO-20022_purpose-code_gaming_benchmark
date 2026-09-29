@@ -1,5 +1,6 @@
 *.aux
-*.log
+paper/*.log
+*.build.log
 *.out
 *.bbl
 *.blg
@@ -8,3 +9,5 @@
 *.fls
 __pycache__/
 .venv/
+paper/pages/
+paper/*.build.log
