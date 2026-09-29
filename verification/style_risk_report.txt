@@ -1,0 +1,57 @@
+{
+  "file": "paper_F7_REVISED.tex",
+  "note": "Internal prose-style heuristic; not a vendor AI detector.",
+  "sentences": 172,
+  "mean_words_per_sentence": 17.66,
+  "sentence_length_sd": 9.25,
+  "sentence_length_cv": 0.524,
+  "short_sentence_share": 0.233,
+  "long_sentence_share": 0.023,
+  "repeated_opening_share": 0.035,
+  "most_common_repeated_openings": [
+    [
+      "this is a",
+      2
+    ],
+    [
+      "the main setting",
+      2
+    ],
+    [
+      "c c catch",
+      2
+    ],
+    [
+      "ieeetran cite amsmath",
+      1
+    ],
+    [
+      "this paper studies",
+      1
+    ],
+    [
+      "we define eleven",
+      1
+    ],
+    [
+      "a seeded generator",
+      1
+    ],
+    [
+      "it enforces field",
+      1
+    ]
+  ],
+  "formulaic_phrases": {
+    "this paper": 2
+  },
+  "absolute_claims": {
+    "never": 0,
+    "proves": 0
+  },
+  "signposts": {
+    "second": 1,
+    "this paper makes": 1
+  },
+  "style_risk_score_out_of_10": 1.23
+}

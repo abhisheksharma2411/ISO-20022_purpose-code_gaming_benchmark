@@ -1,0 +1,6 @@
+PDF: paper_F7_REVISED_ANON.pdf
+Pages: 5
+Encrypted: False
+Openable (PyMuPDF): True
+Likely scanned: False
+XFA present: False
