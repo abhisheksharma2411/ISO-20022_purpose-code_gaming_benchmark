@@ -102,7 +102,9 @@ def run_one(n, eta, rho, seed, k, lam, temp, knowledge, pi_floor,
                          temp=temp, knowledge=knowledge, pi_floor=pi_floor,
                          target_pi0=target_pi0, name_share=name_share,
                          solved_P_NAME=B.P_NAME, solved_TAU=B.TAU,
-                         git_commit=GIT_SHA, cross_fit="2-fold by row parity")
+                         git_commit=GIT_SHA, cross_fit="2-fold by row parity",
+                         c5_history="other fold only, no labels",
+                         d4_standardisation="other-fold statistics")
     return res, msgs
 
 
@@ -477,8 +479,8 @@ def main():
     for d in dets_present:
         rows = [r["detectors"][d] for r in mains]
         ent = {}
-        for met in ("auc", "tpr@0.01", "tpr@0.001", "benign_alerts_per_M@0.01",
-                    "benign_alerts_per_M@0.001"):
+        for met in ("auc", "ap", "tpr@0.01", "tpr@0.001",
+                    "benign_alerts_per_M@0.01", "benign_alerts_per_M@0.001"):
             vals = [row[met] for row in rows]
             ent[met] = float(np.mean(vals))
             ent[met + "_per_seed"] = vals

@@ -553,13 +553,14 @@ FEATURE_NAMES = ["c1_codelist", "c2_completeness", "c3_crossfield",
 
 
 def build_history(msgs):
-    """Pair-level purpose counts over ALL messages of the corpus.
+    """Pair-level purpose counts over the messages passed in.
 
     No gaming label is used. An earlier version excluded gamed messages, so a
     benign message's own purpose was counted in its pair history while a
-    gamed message's was not: a label leak into C5. features() removes the
-    message's own contribution (leave-self-out), so C5 is the share of the
-    pair's OTHER messages that declared a different purpose.
+    gamed message's was not: a label leak into C5. detector_scores() now
+    builds one history per fold and scores each row against the history of
+    the OTHER fold, so no row contributes to its own history and no
+    evaluation row's purpose enters the history used to score it.
     """
     h = {}
     for m in msgs:
@@ -578,9 +579,9 @@ def features(m: Message, history: dict):
         + float(m.ultmt_dbtr_nm is None)
     c4 = float(m.purpose == "SALA"
                and any(w in m.rmt_ustrd for w in ("GOODS", "INVOICE", "SHIPMENT")))
-    hist = history.get(m.pair_id, {})
-    others = sum(hist.values()) - 1                 # leave-self-out
-    same = hist.get(m.purpose, 0) - 1
+    hist = history.get(m.pair_id, {})               # history excludes m
+    others = sum(hist.values())
+    same = hist.get(m.purpose, 0)
     c5 = 1.0 - (same / others) if others > 0 else 0.0
     return [c1, c2, c3, c4, c5,
             float(m.purpose is None), float(len(m.rmt_ustrd)),
@@ -636,14 +637,19 @@ def detector_scores(msgs, seed=0, train_mask=None, extra=False):
     from sklearn.neighbors import LocalOutlierFactor
     from sklearn.preprocessing import StandardScaler
 
-    hist = build_history(msgs)
-    X = np.array([features(m, hist) for m in msgs])
+    n = len(msgs)
+    fold = np.arange(n) % 2
+    # Out-of-fold pair history: row i's C5 is computed from its pair's
+    # messages in the other fold only. No labels, and no evaluation row
+    # contributes to the history used to score it.
+    hist_by_fold = {f: build_history([m for i, m in enumerate(msgs)
+                                      if fold[i] == f]) for f in (0, 1)}
+    X = np.array([features(m, hist_by_fold[1 - fold[i]])
+                  for i, m in enumerate(msgs)])
     R = np.array([raw_features(m) for m in msgs])
     y = np.array([int(m.gamed) for m in msgs])
-    n = len(msgs)
     if train_mask is None:
         train_mask = np.ones(n, dtype=bool)
-    fold = np.arange(n) % 2
 
     d0 = X[:, 0] + (X[:, 1] > 1).astype(float)                 # C1 + hard C2
     d1 = X[:, 0] + 0.5 * X[:, 1] + X[:, 2] + 1.5 * X[:, 3]     # rules C1-C4
@@ -671,7 +677,13 @@ def detector_scores(msgs, seed=0, train_mask=None, extra=False):
                                                            y[tr])
                 d6[te] = lr.predict_proba(scr.transform(R[te]))[:, 1]
 
-    d4 = _z(d1) + _z(d3)
+    # D4 standardises D1 and D3 with the mean and s.d. of the OTHER fold's
+    # (out-of-fold) scores, so a row's own score never enters its statistics.
+    d4 = np.zeros(n)
+    for f in (0, 1):
+        te, ot = fold == f, fold != f
+        d4[te] = ((d1[te] - d1[ot].mean()) / (d1[ot].std() + 1e-9)
+                  + (d3[te] - d3[ot].mean()) / (d3[ot].std() + 1e-9))
     out = {"D0": d0, "D1": d1, "D2": d2, "D3": d3, "D4": d4}
     if extra:
         out["D5"], out["D6"] = d5, d6
@@ -800,14 +812,15 @@ def roc_points(score, y, n=40):
 
 def evaluate(msgs, seed=0, budgets=(0.01, 0.001), boot=1000, want_roc=True,
              extra=False):
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, average_precision_score
     scores, y = detector_scores(msgs, seed=seed, extra=extra)
     if y.sum() == 0:
         raise SystemExit("no gamed messages: raise --rho or lower --lam")
     res, roc = {}, {}
     n_boot_metrics = min(int(boot), 200)
     for name, s in scores.items():
-        row = {"auc": float(roc_auc_score(y, s))}
+        row = {"auc": float(roc_auc_score(y, s)),
+               "ap": float(average_precision_score(y, s))}
         if n_boot_metrics > 0:
             _, lo, hi, se = auc_delong_ci(y, s)
             row["auc_ci95"] = [lo, hi]
