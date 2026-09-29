@@ -1,0 +1,107 @@
+{
+  "config": {
+    "n": 200000,
+    "eta": 0.15,
+    "rho": 0.05,
+    "seed": 7,
+    "k": 2,
+    "lam": 0.18,
+    "temp": 0.1,
+    "pi_floor": 0.1,
+    "target_pi0": 0.45,
+    "name_share": 0.6
+  },
+  "artefact_audit": {
+    "benign_remittance_lengths": [
+      9,
+      22
+    ],
+    "max_benign_splits": 49,
+    "share_gamed_out_of_range": 0.3754865755065376,
+    "share_benign_out_of_range": 0.0,
+    "share_gamed_out_of_range_length": 0.3681006088431979,
+    "share_gamed_out_of_range_splits": 0.009681604950593871,
+    "alert_mass_on_out_of_range": {
+      "D1": 0.4902549407114624,
+      "D2": 1.0,
+      "D4": 0.378,
+      "D5": 0.965,
+      "D6": 1.0
+    },
+    "alert_precision": {
+      "D1": 0.5246877470355732,
+      "D2": 1.0,
+      "D4": 0.4205,
+      "D5": 1.0,
+      "D6": 1.0
+    },
+    "out_of_range_rule": {
+      "auc": 0.6877432877532688,
+      "rec@0.01": 0.19962072063080147,
+      "rec@0.001": 0.019962072063080146,
+      "benign_alerts_per_M@0.01": 0.0
+    },
+    "in_range_subset": {
+      "n_gamed": 6257,
+      "n_benign": 189981,
+      "auc": {
+        "D1": 0.6538405966636551,
+        "D2": 0.8559630051815187,
+        "D4": 0.6694121957976102,
+        "D5": 0.7912783745758473,
+        "D6": 0.6716901512749964
+      },
+      "rec@0.01": {
+        "D1": 0.01922123001133203,
+        "D2": 0.2016941026050823,
+        "D4": 0.01869905705609717,
+        "D5": 0.2586511107559534,
+        "D6": 0.07799264823397795
+      }
+    },
+    "out_of_range_share_by_primitive": {
+      "P1a": 1.0,
+      "P1b": 0.19519094766619519,
+      "P1c": 0.2134048257372654,
+      "P1d": 0.21003795866722902,
+      "P2a": 0.1860231271995978,
+      "P2b": 0.22676200204290092,
+      "P2c": 0.24584103512014788,
+      "P2d": 1.0,
+      "P3a": 0.20572274296990625,
+      "P3b": 0.26507592190889373,
+      "P3c": 0.2249269717624148
+    }
+  },
+  "p1_inversion": {
+    "n": 100000,
+    "heldout_P1_auc_D2": 0.35747430922661677,
+    "heldout_P1_auc_D6": null,
+    "train_P_gamed_given_ultimate_absent": 0.019556224144415192,
+    "train_P_gamed_given_ultimate_present": 0.03329879295376257,
+    "benign_share_ultimate_absent": 0.2741151977793199,
+    "median_D2_benign_ultimate_present": 0.020376239035844332,
+    "median_D2_benign_ultimate_absent": 0.005947174457890057,
+    "per_primitive": {
+      "P1a": {
+        "n": 642,
+        "heldout_auc_vs_benign_D2": 0.2660475804239546,
+        "ultimate_absent_share": 1.0
+      },
+      "P1b": {
+        "n": 4,
+        "note": "too few pure selections"
+      },
+      "P1c": {
+        "n": 579,
+        "heldout_auc_vs_benign_D2": 0.5718631028801715,
+        "ultimate_absent_share": 0.18652849740932642
+      },
+      "P1d": {
+        "n": 771,
+        "heldout_auc_vs_benign_D2": 0.27036801015771517,
+        "ultimate_absent_share": 1.0
+      }
+    }
+  }
+}

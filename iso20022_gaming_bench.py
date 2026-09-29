@@ -65,6 +65,36 @@ INDUSTRY_PURPOSE = {
 
 TOWNS = ["SPRINGFIELD", "RIVERTON", "NEWPORT", "ASHFORD", "MILLBROOK", "OAKDALE"]
 
+# Benign remittance text: an invoice reference plus 0-6 words from this
+# vocabulary and sometimes a second reference, so benign lengths spread over a
+# range instead of taking two fixed values. An earlier generator emitted
+# "INV123456" (9 chars) or that plus " PURPOSE XXXX" (22 chars) for every
+# benign record, so any primitive that appended text produced a length benign
+# traffic never showed; a one-line out-of-range rule then recovered the whole
+# 1% alert capacity (results/diagnostics_seed7_before_generator_fix.json).
+# The three words C4 keys on (GOODS, INVOICE, SHIPMENT) are deliberately not in
+# the benign vocabulary: C4 is a code-versus-narrative contradiction check and
+# its keyword set defines the contradiction.
+RMT_WORDS = ["REF", "PAYMENT", "ORDER", "CONTRACT", "SERVICE", "FEE", "PO",
+             "ACCOUNT", "MONTHLY", "SETTLEMENT", "BALANCE", "PERIOD", "NO"]
+_LETTERS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+
+def _party_name(rng):
+    """Variable-length synthetic party name (4-16 letters), so that a name
+    truncated by P1c is short but not uniquely short."""
+    return "".join(rng.choice(_LETTERS, int(rng.integers(4, 17))))
+
+
+def _remittance(rng):
+    rmt = f"INV{int(rng.integers(1e5, 1e6))}"
+    nw = int(rng.integers(0, 7))
+    if nw:
+        rmt += " " + " ".join(rng.choice(RMT_WORDS, nw))
+    if rng.random() < 0.3:
+        rmt += f" {int(rng.integers(1e3, 1e8))}"
+    return rmt
+
 # Elements the screening abstraction matches names against (F_s in the paper).
 SCREENED_ELEMENTS = {"Cdtr/Nm", "Dbtr/Nm", "UltmtDbtr/Nm", "UltmtCdtr/Nm",
                      "PstlAdr/TwnNm", "PstlAdr/Ctry"}
@@ -240,22 +270,21 @@ def generate(n, eta, rho, seed, k=2, lam=0.35, knowledge="grey"):
         m = Message(
             msg_id=f"MSG{i:09d}",
             msg_type="pain.001" if rng.random() < 0.5 else "pacs.008",
-            dbtr_nm=f"DEBTOR{int(rng.integers(1000, 9999))}",
+            dbtr_nm=_party_name(rng),
             dbtr_ctry=dc,
-            cdtr_nm=f"CREDITOR{int(rng.integers(1000, 9999))}",
+            cdtr_nm=_party_name(rng),
             cdtr_ctry=cc,
             cdtr_industry=ind,
             amount=round(float(np.exp(rng.normal(10.2, 1.4))), 2),
             ccy="EUR" if dc in ("DE", "FR") else "USD",
             purpose=str(rng.choice(codes, p=probs / probs.sum())),
             ctgy_purpose=str(rng.choice(CATEGORY_CODES)),
-            ultmt_dbtr_nm=(f"ULTIMATE{int(rng.integers(1000, 9999))}"
-                           if rng.random() < 0.75 else None),
+            ultmt_dbtr_nm=(_party_name(rng) if rng.random() < 0.75 else None),
             twn_nm=str(rng.choice(TOWNS)),
             ctry=dc,
             strt_nm=f"STREET {int(rng.integers(1, 200))}",
             adr_line=[],
-            rmt_ustrd=f"INV{int(rng.integers(1e5, 1e6))}",
+            rmt_ustrd=_remittance(rng),
             name_in_screened=True,
             name_truncated=False,
             n_splits=1,          # set below
@@ -267,7 +296,10 @@ def generate(n, eta, rho, seed, k=2, lam=0.35, knowledge="grey"):
         # n_splits>1 a perfect gaming indicator covering ~60% of positives,
         # which is backwards from real traffic and inflates every detector.
         if m.msg_type == "pain.001" and rng.random() < BENIGN_BATCH_RATE:
-            m.n_splits = int(rng.integers(2, 50))   # capped again in P3b
+            # 2-49 transactions for 90% of batched files, 50-200 for the rest,
+            # so benign traffic has support up to the P3b cap of 200.
+            m.n_splits = (int(rng.integers(2, 50)) if rng.random() < 0.9
+                          else int(rng.integers(50, 201)))
         # Accidental defects at rate eta. Mix taken from the failure modes
         # market-practice guidance reports (PMPG v1.1, Jul 2024).
         if rng.random() < eta:
