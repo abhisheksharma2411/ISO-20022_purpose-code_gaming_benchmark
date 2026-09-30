@@ -1,0 +1,21 @@
+{
+ "seeds": [
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16
+ ],
+ "xsd_checked": 2089794,
+ "xsd_valid": 2089794,
+ "records": 2000000,
+ "originals": 89794,
+ "gamed": 89794,
+ "invariant_violations": 0,
+ "elapsed_s": 50.81132793426514
+}

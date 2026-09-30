@@ -1,0 +1,74 @@
+{
+ "P1a": {
+  "n": 165,
+  "SEL_message": 1.4886463349204186,
+  "SEL_attempt_main": 1.4556556482948606,
+  "SEL_attempt_independent": 1.5220900293541169
+ },
+ "P1b": {
+  "n": 152,
+  "SEL_message": 1.3768232700409675,
+  "SEL_attempt_main": 1.3768974636060891,
+  "SEL_attempt_independent": 1.3983216770274627
+ },
+ "P1c": {
+  "n": 915,
+  "SEL_message": 1.398994677172674,
+  "SEL_attempt_main": 1.3945178222172074,
+  "SEL_attempt_independent": 1.3849772666910185
+ },
+ "P1d": {
+  "n": 212,
+  "SEL_message": 1.4603620911211668,
+  "SEL_attempt_main": 1.4089624333830342,
+  "SEL_attempt_independent": 1.4991308082401955
+ },
+ "P2a": {
+  "n": 627,
+  "SEL_message": 1.405959587167625,
+  "SEL_attempt_main": 1.4304801508876097,
+  "SEL_attempt_independent": 1.40935973600846
+ },
+ "P2b": {
+  "n": 254,
+  "SEL_message": 1.326758224429822,
+  "SEL_attempt_main": 1.332391531910786,
+  "SEL_attempt_independent": 1.3501147702899186
+ },
+ "P2c": {
+  "n": 139,
+  "SEL_message": 1.2748819972658378,
+  "SEL_attempt_main": 1.2618907835153526,
+  "SEL_attempt_independent": 1.2717658073901854
+ },
+ "P2d": {
+  "n": 531,
+  "SEL_message": 1.4292382649090103,
+  "SEL_attempt_main": 1.443731295559329,
+  "SEL_attempt_independent": 1.4248191729186435
+ },
+ "P3a": {
+  "n": 44,
+  "SEL_message": 1.5326009178779532,
+  "SEL_attempt_main": 1.4888471533688876,
+  "SEL_attempt_independent": 1.470154023034927
+ },
+ "P3b": {
+  "n": 99,
+  "SEL_message": 1.4301786310853886,
+  "SEL_attempt_main": 0.9424651828164445,
+  "SEL_attempt_independent": 0.48834615756150085
+ },
+ "P3c": {
+  "n": 146,
+  "SEL_message": 1.6141701283467718,
+  "SEL_attempt_main": 1.6036468251562435,
+  "SEL_attempt_independent": 1.6181405721671367
+ },
+ "all": {
+  "n": 1817,
+  "SEL_message": 1.3943342998513313,
+  "SEL_attempt_main": 1.3808261336935073,
+  "SEL_attempt_independent": 1.3743720650304023
+ }
+}

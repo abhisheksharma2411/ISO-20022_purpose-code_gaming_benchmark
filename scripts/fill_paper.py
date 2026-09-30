@@ -133,6 +133,18 @@ tok["ART_MASS_LIST"] = ", ".join(f"${d}$ {pct1(v)}\\%".replace("$D", "$D_").repl
 etas = sorted(ETA, key=float)
 for d in ("D1", "D2", "D5", "D7"):
     tok[f"ETA_{d}_DROP"] = f3(ETA[etas[0]][d]["auc"] - ETA[etas[-1]][d]["auc"])
+VA = json.load(open(f"{RES}/validity_all_runs.json"))
+fmt = lambda x: f"{x:,}".replace(",", "{,}")
+tok["XSDALL_CHECKED"], tok["XSDALL_VALID"] = fmt(VA["xsd_checked"]), fmt(VA["xsd_valid"])
+tok["XSDALL_RECORDS"], tok["XSDALL_ORIG"] = fmt(VA["records"]), fmt(VA["originals"])
+tok["INVALL_VIOL"], tok["INVALL_GAMED"] = str(VA["invariant_violations"]), fmt(VA["gamed"])
+SE = json.load(open(f"{RES}/attempt_sensitivity_seed7.json"))
+tok["P3B_SELATT_INDEP"] = f2(SE["P3b"]["SEL_attempt_independent"])
+tok["TAB_SENS"] = "; ".join(f"{p} {f2(v['SEL_message'])} / {f2(v['SEL_attempt_main'])} / {f2(v['SEL_attempt_independent'])}" for p, v in SE.items())
+for d in ("D2", "D5"):
+    es = CT["detectors"][d]["evidence_source_exploratory"]
+    tok[f"ES_{d}_R2"], tok[f"ES_{d}_P"] = f2(es["r2"]), f"{es['p_r2']:.3f}"
+tok["P3_LF_MAX"] = f3(max(L["P3"][d] for d in ("D1", "D3", "D4", "D5")))
 tok["GRID_SEL_MIN"], tok["GRID_SEL_MAX"] = f2(min(v["SEL_min"] for v in G.values())), f2(max(v["SEL_max"] for v in G.values()))
 tok["GRID_D1_MIN"], tok["GRID_D1_MAX"] = f3(min(v["D1_auc"] for v in G.values())), f3(max(v["D1_auc"] for v in G.values()))
 # --- supplement table bodies -------------------------------------------------
@@ -177,6 +189,11 @@ json.dump(tok, open(out.rsplit(".", 1)[0] + ".tokens.json", "w"), indent=1)
 
 # --- qualitative claims (extended after the full run) ----------------------------
 CLAIMS = {
+ "XSD 100% valid over all ten runs, > 2M records, 0 violations": VA["xsd_valid"] == VA["xsd_checked"] and VA["xsd_checked"] > 2_000_000 and VA["invariant_violations"] == 0,
+ "P3b attempt-level SEL below 1 under both dependence assumptions": SE["P3b"]["SEL_attempt_main"] < 1 and SE["P3b"]["SEL_attempt_independent"] < 1,
+ "family LOO MAE marginally better than grand mean; contradiction worse": CT["detectors"]["D2"]["family"]["loo_mae"] < CT["detectors"]["D2"]["baseline_loo_mae"] < CT["detectors"]["D2"]["contradiction"]["loo_mae"],
+ "P3 message-level max AUC between 0.5 and 0.6, below D7": 0.5 < float(tok["P3_LF_MAX"]) < 0.6 and L["P3"]["D7"] > float(tok["P3_LF_MAX"]),
+ "CT: family suggestive but not significant (0.05 < p < 0.2 for D2 or D5)": any(0.05 < CT["detectors"][d]["family"]["p_r2"] < 0.2 for d in ("D2", "D5")),
  "XSD 100% valid": V["xsd"]["valid"] == V["xsd"]["checked"] and V["xsd"]["checked"] > 0,
  "no invariant violations": V["invariants"]["violations_total"] == 0,
  "artefact: under 0.5% of benign test records out of the benign training range": AU["share_benign_test_out_of_range"] < 0.005,

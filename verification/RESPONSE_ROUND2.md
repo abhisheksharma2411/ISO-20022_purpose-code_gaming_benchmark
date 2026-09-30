@@ -72,3 +72,22 @@ and invariants; result files carry the commit; the harness test suite
 includes the out-of-range regression check, the prior-only history check and
 the frozen-threshold capacity check. The anonymous variant carries no
 identifying information; the named variant cites the repository and DOI.
+
+---
+
+# Addendum: third-round comments (30 September 2026, v3.0.1)
+
+| Comment | Change |
+|---|---|
+| "Every message is schema-valid" exceeded the audit | Every generated record and every counterfactual original of all ten runs was validated (`scripts/validate_all_runs.py`, `results/validity_all_runs.json`): 2,089,794 of 2,089,794 valid, 0 invariant violations over 89,794 gamed records. The abstract now states that count. |
+| P3 "at or below chance" contradicted D5 at 0.538 | "No message-level detector exceeds AUC 0.538, while the history-only control reaches 0.851." |
+| Null-result wording too categorical | "No conclusive evidence that either grouping predicts primitive-level recovery; the contradiction label has almost no explanatory value, the family effect is suggestive but inconclusive with eleven primitives." |
+| Leave-one-primitive-out sentence wrong | "The contradiction grouping is worse than the grand mean and the family grouping improves on it only marginally (0.123 and 0.099 against 0.107)." |
+| "Pre-registered" overstated | "Pre-specified confirmatory", "specified after the exploratory evaluation and before the corrected rerun", throughout paper and supplement. |
+| Table III `Rec.@1%` misleading for the shift | Column renamed "Rec. (A thr.)"; caption states recovery and alert rate are under A's frozen threshold, not at a 1% alert rate on B. |
+| Replacement explanation not tested | Phrased as what the case analysis "suggests, without testing it in the same way"; an exploratory evidence-source grouping is reported in the supplement, labelled exploratory (it coincides with P3 versus the rest). |
+| Attempt-level dependence assumption | Stated in Section IV-B; the fully independent extreme is reported (P3b 0.94 main, 0.49 independent; every other primitive within 0.06 of its per-message value). |
+| Abstract length and detail | 241 words; two R^2 and two p-values removed; "highest-mean-AUC label-free detector". |
+| Figure 1 small | Enlarged; page 5 still holds only references. |
+| Domain validation | Not performed (requires raters); procedure unchanged. |
+| Double-blind hygiene | The anonymous variant (`_Anonymous`) has no author block, "Anonymous" PDF metadata, and cites neither repository nor DOI; the reviewer read the named variant. Artifact links verified from a logged-out client (repository 200, DOI resolves, release page 200). |

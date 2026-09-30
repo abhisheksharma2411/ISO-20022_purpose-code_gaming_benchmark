@@ -36,30 +36,28 @@ abhishek.sharma@ieee.org}}
 \begin{abstract}
 ISO~20022 gives payment controls structured data, but message creators still
 decide where names, addresses, and purpose information appear. We study
-\emph{message gaming}: deliberate edits to purpose codes, party fields, or the
-message path that lower a modelled alert probability while preserving the
-payment's economic meaning. A seeded generator gives each debtor--creditor
-pair latent behaviour and emits pain.001 and pacs.008 records in time order
-with a controlled rate of ordinary defects. A cost-bounded evader applies up
-to two of eleven manipulations. Every message is schema-valid and every edit
-preserves its stated invariants. Every evaluation is temporal: the earliest
-60\% of a run trains, the next 20\% freezes alert thresholds, and the latest
-20\% is scored, with pair-clustered bootstrap intervals over ten seeds.
-Screening-evasion lift (SEL) is measured as a paired counterfactual on each
-manipulated payment. At a frozen 1\% alert threshold, where at most
-@@CEIL1_PCT@@\% of gamed messages can be recovered, the best supervised model
-recovers @@D2_REC1_PCT@@\% and falls from AUC @@P1_D2IN@@ to @@P1_D2OUT@@ on a
-withheld misfielding family; the strongest label-free message-level detector
-recovers @@D5_REC1_PCT@@\%. A pre-registered test finds that neither the
-P1/P2/P3 family ($R^2=@@CT_D2_R2F@@$, exact $p=@@CT_D2_PF@@$) nor whether an
-edit leaves an internal contradiction ($R^2=@@CT_D2_R2C@@$, $p=@@CT_D2_PC@@$)
-explains which primitives that model recovers. What separates the families
-is the evidence required: on withheld path and structure edits every
-message-level detector is at or below chance, while a history-only control
-reaches AUC @@P3_D7@@. Splitting a payment raises per-message lift to
-@@P3B_SEL@@ but lowers attempt-level lift to @@P3B_SELATT@@ once every child
-is screened. Results are synthetic and relative to a published screening
-abstraction.
+\emph{message gaming}: edits to purpose codes, party fields, or the message
+path that lower a modelled alert probability while preserving the payment's
+economic meaning. A seeded generator gives each debtor--creditor pair latent
+behaviour and emits pain.001 and pacs.008 records in time order with a
+controlled rate of ordinary defects; a cost-bounded evader applies up to two
+of eleven manipulations. All @@XSDALL_CHECKED@@ generated and counterfactual
+records across ten runs are schema-valid and every edit passes its stated
+invariants. Evaluation is temporal: the earliest 60\% of a run trains, the
+next 20\% freezes alert thresholds, the latest 20\% is scored, with
+pair-clustered intervals. Screening-evasion lift (SEL) is a paired
+counterfactual on each manipulated payment. At a frozen 1\% alert threshold,
+where at most @@CEIL1_PCT@@\% of gamed messages can be recovered, the best
+supervised model recovers @@D2_REC1_PCT@@\% and falls to chance on a withheld
+misfielding family; the highest-mean-AUC label-free detector recovers
+@@D5_REC1_PCT@@\%. A pre-specified confirmatory test finds no conclusive
+evidence that either the P1/P2/P3 family or an internal-contradiction label
+predicts primitive-level recovery. What does separate the families is the
+evidence required: on withheld path and structure edits no message-level
+detector exceeds AUC @@P3_LF_MAX@@, while a history-only control reaches
+@@P3_D7@@. Splitting a payment raises per-message lift to @@P3B_SEL@@ but
+lowers attempt-level lift below 1. Results are synthetic and relative to a
+published screening abstraction.
 \end{abstract}
 \begin{IEEEkeywords}
 ISO~20022, payment data quality, purpose codes, sanctions screening,
@@ -98,7 +96,7 @@ The contributions are eleven message-level manipulations with actors,
 costs, and stated invariants, all schema-valid; a generator with pair
 behaviour and time order; a temporal protocol with frozen thresholds and
 pair-clustered uncertainty; paired counterfactual SEL, which needs no
-separate control group; a pre-registered test of what predicts
+separate control group; a pre-specified test of what predicts
 detectability; and a history-only positive control. Detectors are
 conventional on purpose. No real payment, customer, or institution data is
 used.
@@ -147,7 +145,7 @@ need an element the record lacks are inadmissible for that record.
 
 \begin{table}[!t]
 \caption{The eleven primitives with actor, cost $c(m)$, and the
-pre-registered contradiction label (C: the edit makes two elements of the
+pre-specified contradiction label (C: the edit makes two elements of the
 message, or an element and the creditor's profile, inconsistent).}
 \label{tab:prims}
 \centering
@@ -173,8 +171,10 @@ P3c & an intermediary replaces the ultimate-party element & 0.55 & \\
 \end{table}
 
 Table~\ref{tab:prims} lists the primitives. Whether the P1/P2/P3 family or
-the contradiction label predicts detectability was fixed as a question, with
-labels and tests, before the first full-scale run (Section~\ref{sec:ct}).
+the contradiction label predicts detectability was specified as a
+confirmatory question, with labels and tests, after the exploratory
+evaluation of an earlier version and before the corrected full-scale run
+(Section~\ref{sec:ct}).
 
 \section{Benchmark and Protocol}
 \subsection{Generator}
@@ -191,11 +191,11 @@ purpose, in the mix 35/30/20/15\%). A fraction $\rho$ is illicit: the listed
 party is the ultimate debtor or the debtor, and the evader edits the record.
 Benign remittance text and party names have variable length, so no edit
 leaves a length that benign traffic does not show; an audit checks this on
-every run. Records serialise to pain.001.001.09 or pacs.008.001.08. Every instance
-in the seed-7 test window, every gamed record, and every original was
-validated against the official XSDs (@@XSD_VALID_PCT@@\% of @@XSD_CHECKED@@
-valid), and every gamed record passed its invariant check
-(@@INV_VIOL@@ violations). Full distributions are in the supplement.
+every run. Records serialise to pain.001.001.09 or pacs.008.001.08. Every generated
+record and every counterfactual original of the ten main runs was validated
+against the official XSDs (@@XSDALL_VALID@@ of @@XSDALL_CHECKED@@ valid), and
+every gamed record passed its invariant check (@@INVALL_VIOL@@ violations in
+@@INVALL_GAMED@@ records). Full distributions are in the supplement.
 
 \subsection{Screening abstraction}
 A name leg matches listed names against the elements the current path
@@ -217,7 +217,10 @@ controls outside the evader's reach. Per message,
 $\pi=1-(1-p_{\mathrm{name}})(1-p_{\mathrm{score}})(1-f)$; per attempt, the
 name leg and floor act once and the score leg once per child, so
 $\pi_{\mathrm{att}}=1-(1-p_{\mathrm{name}})(1-f)(1-p_{\mathrm{score}})^{n_{\mathrm{ch}}}$.
-The evader optimises the per-message form. Baseline survival is split
+This models perfectly correlated name-leg and floor outcomes across
+children and a separate score-leg draw per child; the fully independent
+extreme, $1-(1-\pi)^{n_{\mathrm{ch}}}$, is reported in the supplement. The
+evader optimises the per-message form. Baseline survival is split
 between the legs by a name share $\sigma$; the main setting $\pi_0=0.45$,
 $\sigma=0.6$ solves to $P_{\mathrm{name}}=@@PNAME@@$, $\tau=@@TAU@@$. Weights
 are illustrative constants, not any institution's rule set.
@@ -254,6 +257,9 @@ detector with the same prior history, and
 $\mathrm{SEL}=\sum(1-\pi_m)/\sum(1-\pi_0)$. Residual SEL multiplies each
 term by one minus the frozen alert decision. Leave-one-family-out retrains
 $D_2$ and $D_6$ without one family (at $k=1$, pure-family records).
+Splitting's attempt-level lift is @@P3B_SELATT@@ under the main dependence
+assumption and @@P3B_SELATT_INDEP@@ under the independent extreme
+(supplement).
 
 \section{Results}
 \begin{table}[!t]
@@ -305,14 +311,15 @@ top-1\% ranking metric differs from frozen-threshold recovery by at most
 ten seeds; in $\rightarrow$ out for the retrained supervised models,
 single value for label-free ones). Right: generator shift, detectors fitted
 and thresholds frozen on configuration A, scored on B's test window (three
-seeds); B$\rightarrow$B in parentheses.}
+seeds); recovery and alert rate are under A's frozen threshold, not at a 1\%
+alert rate on B; B$\rightarrow$B in parentheses.}
 \label{tab:loo}
 \centering
 \scriptsize
 \setlength{\tabcolsep}{2pt}
 \begin{tabular}{@{}lccc|ccc@{}}
 \toprule
- & P1 & P2 & P3 & AUC A$\rightarrow$B & Rec.@1\% & Alert rate \\
+ & P1 & P2 & P3 & AUC A$\rightarrow$B & Rec.\ (A thr.) & Alerts \\
 \midrule
 $D_1$ & @@P1_D1@@ & @@P2_D1@@ & @@P3_D1@@ & @@SH_D1_AB_AUC@@ (@@SH_D1_BB_AUC@@) & @@SH_D1_AB_REC@@ & @@SH_D1_AB_ALERT@@ \\
 $D_5$ & @@P1_D5@@ & @@P2_D5@@ & @@P3_D5@@ & @@SH_D5_AB_AUC@@ (@@SH_D5_BB_AUC@@) & @@SH_D5_AB_REC@@ & @@SH_D5_AB_ALERT@@ \\
@@ -335,8 +342,8 @@ ultimate debtor therefore score @@MECH_P1A_AUC@@ (P1a) and @@MECH_P1D_AUC@@
 (P1d) against benign traffic, while truncation, which leaves it in place,
 scores @@MECH_P1C_AUC@@. With P2 withheld the supervised drop is
 @@P2_D2IN@@$\rightarrow$@@P2_D2OUT@@ while the label-free $D_1$ and $D_5$
-stay at @@P2_D1@@ and @@P2_D5@@. P3 is the pre-registered contrast. Every
-message-level detector is at or below chance (@@P3_D1@@ to @@P3_D5@@; the
+stay at @@P2_D1@@ and @@P2_D5@@. P3 is the pre-specified contrast. No
+message-level detector exceeds AUC @@P3_LF_MAX@@ (@@P3_D1@@ to @@P3_D5@@; the
 withheld $D_2$ @@P3_D2OUT@@), and the history-only $D_7$ reaches @@P3_D7@@.
 Path substitution, decomposition, and party-chain changes leave the message
 coherent but break the pair's prior pattern. Table~\ref{tab:loo} (right) fits the detectors and freezes thresholds on
@@ -359,7 +366,7 @@ fixed rules overtake the supervised model, at @@PREV_0_005_D2_APD@@ and
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.98\columnwidth,height=4.6cm,
+  width=0.98\columnwidth,height=5.4cm,
   ybar=0.4pt,bar width=2.4pt,ylabel={Lift},
   symbolic x coords={P1a,P1b,P1c,P1d,P2a,P2b,P2c,P2d,P3a,P3b,P3c},
   xtick=data,ymin=@@SEL_YMIN@@,ymax=@@SEL_YMAX@@,grid=both,grid style={black!12},
@@ -405,9 +412,11 @@ agree within @@ATT_DIFF_MAX@@.
 \subsection{What predicts detectability}\label{sec:ct}
 The reviewed version of this work read its results as showing that
 detectability follows whether an edit leaves a checkable contradiction rather
-than its family. We fixed that reading as a hypothesis, with labels and tests,
-before the first run of the corrected protocol (Table~\ref{tab:prims};
-supplement). It does not hold. For the supervised $D_2$ the contradiction
+than its family. We specified that reading as a confirmatory hypothesis, with labels and
+tests, after that exploratory evaluation and before the first run of the
+corrected protocol (Table~\ref{tab:prims}; supplement). The contradiction label has almost no explanatory value; the family effect
+is suggestive but inconclusive with eleven primitives. For the supervised
+$D_2$ the contradiction
 label explains $R^2=@@CT_D2_R2C@@$ of the variance in per-primitive recovery
 at the frozen threshold (exact permutation $p=@@CT_D2_PC@@$ over all 330
 relabellings; contradiction-bearing primitives @@CT_D2_M1@@\% against
@@ -415,15 +424,18 @@ relabellings; contradiction-bearing primitives @@CT_D2_M1@@\% against
 ($p=@@CT_D2_PF@@$ over 11,550). For the label-free $D_5$ the figures are
 @@CT_D5_R2C@@ ($p=@@CT_D5_PC@@$) and @@CT_D5_R2F@@ ($p=@@CT_D5_PF@@$). Cost
 correlates negatively with recovery ($\rho=@@CT_D2_RHOCOST@@$,
-$p=@@CT_D2_PCOST@@$); frequency does not. Leave-one-primitive-out prediction
-from either grouping is no better than the grand mean (MAE @@CT_D2_LOOC@@ and
-@@CT_D2_LOOF@@ against @@CT_D2_LOOB@@). The per-primitive rates show why.
+$p=@@CT_D2_PCOST@@$); frequency does not. In leave-one-primitive-out prediction the
+contradiction grouping is worse than the grand mean and the family grouping
+improves on it only marginally (MAE @@CT_D2_LOOC@@ and @@CT_D2_LOOF@@ against
+@@CT_D2_LOOB@@). The per-primitive rates show why.
 The omitted purpose code P2c, labelled coherent, is the second most recovered
 primitive (@@P2C_DET_D2_PCT@@\%), because absence is itself a feature. The
 address contradiction P1b, labelled contradiction-bearing, is barely
 recovered (@@P1B_DET_D2_PCT@@\%), because no feature compares the structured
-town with the free-text line. Detectability follows the checks a detector
-actually has; a contradiction that no feature reads goes unseen. What does
+town with the free-text line. The case analysis suggests, without testing it in the same way, that
+detection depends on whether the detector observes the evidence source the
+primitive modifies; a contradiction that no feature reads goes unseen. An
+exploratory grouping by evidence source is in the supplement. What does
 separate the families is the kind of evidence required, as the
 leave-one-family-out result shows: P3 edits are caught by prior pair history
 and by nothing message-level. Of the two directional expectations recorded
@@ -445,8 +457,8 @@ re-chain a payment are unseen by message-level checks and visible to prior
 pair history. The control that addresses them is longitudinal, not a better
 validator. The claim drawn from the earlier
 evaluation, that an internal contradiction predicts detectability, did not
-survive its pre-registered test; what predicts detectability is whether a
-detector reads the field the edit touches. Under a generator shift the
+survive its confirmatory test; the case analysis suggests that what matters
+is whether a detector reads the field the edit touches. Under a generator shift the
 rankings hold while frozen thresholds do not, and at low prevalence
 precision collapses for every detector.
 
@@ -459,7 +471,7 @@ share a feature vocabulary; the audit finds @@ART_BEN_PCT@@\% of benign and
 @@ART_GAMED_PCT@@\% of gamed test records outside the benign training ranges
 and at most @@ART_MASS_MAX_PCT@@\% of any detector's alert mass on them.
 Domain ratings of the primitives have not been collected; the questionnaire
-and blinded procedure are released and the pre-registered test reruns
+and blinded procedure are released and the pre-specified test reruns
 unchanged on raters' labels. XSD validity is not scheme or business
 acceptance, and time order is synthetic and without drift.
 

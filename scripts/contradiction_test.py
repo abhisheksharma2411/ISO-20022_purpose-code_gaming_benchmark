@@ -72,7 +72,11 @@ def spearman_perm(y, x, n_perm=50000, seed=0):
     return {"rho": float(obs), "p": (cnt + 1) / (n_perm + 1)}
 
 
-out = {"labels": {p: int(L[p]["contradiction"]) for p in prims}, "detectors": {}}
+# Exploratory (not pre-specified): does the tested detector observe the evidence
+# source the primitive modifies? 1 = current-message content (P1, P2);
+# 0 = route, attempt aggregation or party chain (P3a, P3b, P3c).
+evsrc = np.array([0 if p.startswith("P3") else 1 for p in prims])
+out = {"labels": {p: int(L[p]["contradiction"]) for p in prims}, "evidence_source_labels": {p: int(v) for p, v in zip(prims, evsrc)}, "detectors": {}}
 for d in ("D2", "D5", "D1", "D7"):
     y = np.array([S["sel"][p][f"detect_rate_{d}"] for p in prims])
     per_seed = np.array([[m["sel"][p].get(f"detect_rate_{d}", np.nan) for p in prims] for m in mains])
@@ -80,6 +84,7 @@ for d in ("D2", "D5", "D1", "D7"):
            "contradiction": exact_binary(y, contra), "family": exact_family(y, fam),
            "cost": spearman_perm(y, cost), "frequency": spearman_perm(y, freq),
            "capability_r2": r2(y, capab),
+           "evidence_source_exploratory": exact_binary(y, evsrc),
            "baseline_loo_mae": float(np.mean([abs(y[i] - np.delete(y, i).mean()) for i in range(len(y))])),
            "per_seed_r2_contradiction": [r2(s, contra) for s in per_seed if not np.isnan(s).any()],
            "per_seed_r2_family": [r2(s, fam) for s in per_seed if not np.isnan(s).any()]}

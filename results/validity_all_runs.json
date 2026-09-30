@@ -1,0 +1,143 @@
+{
+ "seeds": [
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16
+ ],
+ "per_seed": [
+  {
+   "seed": 7,
+   "records": 200000,
+   "originals": 9029,
+   "xsd_checked": 209029,
+   "xsd_valid": 209029,
+   "gamed": 9029,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.33728422663322244,
+   "solved_TAU": 0.7822265625
+  },
+  {
+   "seed": 8,
+   "records": 200000,
+   "originals": 8913,
+   "xsd_checked": 208913,
+   "xsd_valid": 208913,
+   "gamed": 8913,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.3452497785442634,
+   "solved_TAU": 0.791015625
+  },
+  {
+   "seed": 9,
+   "records": 200000,
+   "originals": 9152,
+   "xsd_checked": 209152,
+   "xsd_valid": 209152,
+   "gamed": 9152,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.34133433742668334,
+   "solved_TAU": 0.7529296875
+  },
+  {
+   "seed": 10,
+   "records": 200000,
+   "originals": 9134,
+   "xsd_checked": 209134,
+   "xsd_valid": 209134,
+   "gamed": 9134,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.342247606556922,
+   "solved_TAU": 0.779296875
+  },
+  {
+   "seed": 11,
+   "records": 200000,
+   "originals": 8849,
+   "xsd_checked": 208849,
+   "xsd_valid": 208849,
+   "gamed": 8849,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.333763973778603,
+   "solved_TAU": 0.78076171875
+  },
+  {
+   "seed": 12,
+   "records": 200000,
+   "originals": 9126,
+   "xsd_checked": 209126,
+   "xsd_valid": 209126,
+   "gamed": 9126,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.3439732247412426,
+   "solved_TAU": 0.7470703125
+  },
+  {
+   "seed": 13,
+   "records": 200000,
+   "originals": 8807,
+   "xsd_checked": 208807,
+   "xsd_valid": 208807,
+   "gamed": 8807,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.3387356317792773,
+   "solved_TAU": 0.802734375
+  },
+  {
+   "seed": 14,
+   "records": 200000,
+   "originals": 8950,
+   "xsd_checked": 208950,
+   "xsd_valid": 208950,
+   "gamed": 8950,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.35093290247091796,
+   "solved_TAU": 0.7734375
+  },
+  {
+   "seed": 15,
+   "records": 200000,
+   "originals": 8937,
+   "xsd_checked": 208937,
+   "xsd_valid": 208937,
+   "gamed": 8937,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.3355148667558022,
+   "solved_TAU": 0.7880859375
+  },
+  {
+   "seed": 16,
+   "records": 200000,
+   "originals": 8897,
+   "xsd_checked": 208897,
+   "xsd_valid": 208897,
+   "gamed": 8897,
+   "invariant_violations": 0,
+   "first_errors": [],
+   "solved_P_NAME": 0.34042592934304616,
+   "solved_TAU": 0.7763671875
+  }
+ ],
+ "xsd_checked": 2089794,
+ "xsd_valid": 2089794,
+ "records": 2000000,
+ "originals": 89794,
+ "gamed": 89794,
+ "invariant_violations": 0,
+ "elapsed_s": 50.81132793426514
+}
