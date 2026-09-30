@@ -11,3 +11,4 @@ __pycache__/
 .venv/
 paper/pages/
 paper/*.build.log
+xsd/

@@ -1,0 +1,22 @@
+{
+  "registered": "2026-09-30, before any v3 full-scale result existed (commit recorded in git history)",
+  "question": "Does per-primitive detectability at a fixed 1% alert capacity follow the action family (P1/P2/P3) or whether the edit leaves a checkable contradiction inside the message?",
+  "definition": "contradiction-bearing = the edit makes two elements of the same message, or an element and the creditor's static industry profile, inconsistent with each other; coherent = the edit removes, relocates, reroutes or decomposes information without creating such an inconsistency",
+  "labels": {
+    "P1a": {"contradiction": 0, "family": "P1", "rationale": "relocates the ultimate-party name into remittance text; the message stays internally consistent, an element is merely absent"},
+    "P1b": {"contradiction": 1, "family": "P1", "rationale": "the free-text address line carries the true town while the structured TwnNm names a different town"},
+    "P1c": {"contradiction": 0, "family": "P1", "rationale": "a short name is not inconsistent with anything else in the message"},
+    "P1d": {"contradiction": 0, "family": "P1", "rationale": "omission of an optional element"},
+    "P2a": {"contradiction": 1, "family": "P2", "rationale": "a salary code for a creditor whose industry profile rarely or never receives salary payments"},
+    "P2b": {"contradiction": 1, "family": "P2", "rationale": "category purpose SALA against a purpose code and narrative that describe goods or services"},
+    "P2c": {"contradiction": 0, "family": "P2", "rationale": "omission of the purpose code"},
+    "P2d": {"contradiction": 1, "family": "P2", "rationale": "salary code over a goods, invoice or shipment narrative"},
+    "P3a": {"contradiction": 0, "family": "P3", "rationale": "same payment on another path; each message is internally coherent"},
+    "P3b": {"contradiction": 0, "family": "P3", "rationale": "decomposition into consistent children"},
+    "P3c": {"contradiction": 0, "family": "P3", "rationale": "a plausible intermediary replaces the ultimate party; nothing in the message contradicts it"}
+  },
+  "primary_outcome": "per-primitive recovery at the frozen 1% threshold on the test window, mean over the ten main seeds, for D2 (supervised on raw features that contain no hand-built consistency check) and D5 (label-free LOF on the feature vector); D1 is reported as a reference only because its rules are the contradiction checks themselves",
+  "competing_explanations": ["family P1/P2/P3", "contradiction label", "primitive cost c(m)", "primitive frequency (selection count)", "capability requirement (route choice vs originator/PSP)"],
+  "tests": "exact permutation tests over all relabellings (330 for the binary label, 11550 for the family multiset), variance explained R^2, difference in mean recovery, and leave-one-primitive-out prediction error of each grouping",
+  "external_rating": "analysis/EXPERT_QUESTIONNAIRE.md is prepared for two or three blinded domain raters; their labels, once collected, replace these and the test is rerun unchanged"
+}

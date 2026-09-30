@@ -1,59 +1,56 @@
 #!/usr/bin/env python3
 """
-iso20022_gaming_bench.py -- reference implementation for the F7 benchmark
-(paper: "Detecting Purpose-Code Gaming in ISO 20022 Payments").
+iso20022_gaming_bench.py -- v3: message gaming in ISO 20022 payments.
 
-Provides:
-  * a benign message generator with a tunable rate eta of ACCIDENTAL
-    data-quality defects, drawn from the failure modes PMPG reports;
-  * a cost-bounded evader that applies evasion primitives P1/P2/P3 to
-    minimise a published screening-probability model pi (paper eq. 1);
-  * pain.001.001.09 / pacs.008.001.08 XML serialisation, optionally
-    validated against the ISO 20022 XSDs;
-  * detectors D0..D4 over the C1..C5 validation constraints;
-  * SEL / SEL_res (paper eqs. 2, 3) with bootstrap intervals.
+Third harness revision (30 Sep 2026). Changes from v2, each answering a
+reviewer objection:
 
-Run the full paper protocol with run_protocol.py, not this file directly.
-
-EVERYTHING IS SYNTHETIC. No real payment message, customer record, alert
-outcome or institution-specific parameter is used anywhere in this code.
-The risk weights below are illustrative constants chosen for the study.
+  * Pairs have latent behaviour. Every debtor-creditor pair carries a stable
+    purpose profile, a preferred message path, a batching habit, a party-chain
+    pattern (which ultimate names it uses), an amount scale, and a volume
+    weight. Messages are generated in time order and carry a timestamp t.
+  * Every history feature is computed from the pair's STRICTLY EARLIER
+    messages only, in a single streaming pass, with no label.
+  * Temporal protocol: earliest 60% of each run trains, next 20% validates
+    (alert thresholds are frozen there), latest 20% tests. Nothing is
+    cross-fitted any more.
+  * Paired counterfactual SEL: every gamed record keeps its unmanipulated
+    original x, which is scored by the same detector with the same prior
+    history, so residual SEL no longer depends on a small no-edit control
+    group.
+  * Splitting (P3b) dilutes only the amount term of the score leg, one child
+    at a time; attempt-level alerting (any child alerted) is evaluated too.
+  * Screening coverage depends on the message path: the interbank leg does
+    not read ultimate parties in this abstraction, so P3a's effect flows
+    through coverage rather than through a hard-coded flag. Route choice is
+    a per-record capability. Admissibility is checked per record.
+  * A history-only positive-control detector D7 uses prior pair behaviour.
+  * Uncertainty is a pair-clustered bootstrap over the test window.
 """
-
 from __future__ import annotations
 
 import argparse
-import hashlib
 import itertools
 import json
 import math
 import os
+import xml.etree.ElementTree as ET
 from copy import copy
-from dataclasses import dataclass
-from xml.etree import ElementTree as ET
+from dataclasses import dataclass, field, asdict
 
 import numpy as np
 
 # ===========================================================================
-# Domain constants.
-# Purpose codes are genuine ISO 20022 ExternalPurpose1Code members.
-# The RISK WEIGHTS ARE OUR MODEL -- they are not any institution's weights,
-# and we deliberately do not publish corridor-calibrated values (paper VII-A).
+# Constants. Risk weights are the benchmark's own illustrative constants.
 # ===========================================================================
 PURPOSE_CODES = ["GDDS", "SUPP", "TRAD", "SALA", "CHAR", "INTC", "SERV", "OTHR"]
-
 PURPOSE_RISK = {"GDDS": 0.10, "SUPP": 0.12, "TRAD": 0.45, "SALA": 0.08,
                 "CHAR": 0.38, "INTC": 0.30, "SERV": 0.18, "OTHR": 0.35}
-
 CATEGORY_CODES = ["CORT", "SALA", "SUPP", "TRAD", "INTC"]
-
 CORRIDORS = [("GB", "US"), ("DE", "AE"), ("SG", "IN"), ("US", "MX"), ("FR", "TR")]
 CORRIDOR_RISK = {("GB", "US"): 0.05, ("DE", "AE"): 0.35, ("SG", "IN"): 0.20,
                  ("US", "MX"): 0.25, ("FR", "TR"): 0.40}
-
 INDUSTRIES = ["manufacturing", "logistics", "retail", "services", "ngo", "finance"]
-
-# Plausible purpose codes per creditor industry -- the basis of constraint C3.
 INDUSTRY_PURPOSE = {
     "manufacturing": {"GDDS": .45, "SUPP": .30, "TRAD": .15, "SERV": .05, "OTHR": .05},
     "logistics":     {"SERV": .40, "SUPP": .30, "TRAD": .20, "GDDS": .05, "OTHR": .05},
@@ -62,71 +59,123 @@ INDUSTRY_PURPOSE = {
     "ngo":           {"CHAR": .65, "SERV": .15, "SALA": .10, "OTHR": .10},
     "finance":       {"INTC": .50, "SERV": .25, "SUPP": .15, "OTHR": .10},
 }
-
 TOWNS = ["SPRINGFIELD", "RIVERTON", "NEWPORT", "ASHFORD", "MILLBROOK", "OAKDALE"]
-
-# Benign remittance text: an invoice reference plus 0-6 words from this
-# vocabulary and sometimes a second reference, so benign lengths spread over a
-# range instead of taking two fixed values. An earlier generator emitted
-# "INV123456" (9 chars) or that plus " PURPOSE XXXX" (22 chars) for every
-# benign record, so any primitive that appended text produced a length benign
-# traffic never showed; a one-line out-of-range rule then recovered the whole
-# 1% alert capacity (results/diagnostics_seed7_before_generator_fix.json).
-# The three words C4 keys on (GOODS, INVOICE, SHIPMENT) are deliberately not in
-# the benign vocabulary: C4 is a code-versus-narrative contradiction check and
-# its keyword set defines the contradiction.
 RMT_WORDS = ["REF", "PAYMENT", "ORDER", "CONTRACT", "SERVICE", "FEE", "PO",
              "ACCOUNT", "MONTHLY", "SETTLEMENT", "BALANCE", "PERIOD", "NO"]
 _LETTERS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+# Elements the screening abstraction matches listed names against, by path.
+# Assumption (stated in the paper): the interbank leg screens the debtor and
+# creditor names but not ultimate parties.
+SCREENED = {"pain.001": {"Dbtr/Nm", "Cdtr/Nm", "UltmtDbtr/Nm"},
+            "pacs.008": {"Dbtr/Nm", "Cdtr/Nm"}}
 
-def _party_name(rng):
-    """Variable-length synthetic party name (4-16 letters), so that a name
-    truncated by P1c is short but not uniquely short."""
-    return "".join(rng.choice(_LETTERS, int(rng.integers(4, 17))))
-
-
-def _remittance(rng):
-    rmt = f"INV{int(rng.integers(1e5, 1e6))}"
-    nw = int(rng.integers(0, 7))
-    if nw:
-        rmt += " " + " ".join(rng.choice(RMT_WORDS, nw))
-    if rng.random() < 0.3:
-        rmt += f" {int(rng.integers(1e3, 1e8))}"
-    return rmt
-
-# Elements the screening abstraction matches names against (F_s in the paper).
-SCREENED_ELEMENTS = {"Cdtr/Nm", "Dbtr/Nm", "UltmtDbtr/Nm", "UltmtCdtr/Nm",
-                     "PstlAdr/TwnNm", "PstlAdr/Ctry"}
-UNSCREENED_ELEMENTS = {"PstlAdr/AdrLine", "RmtInf/Ustrd", "RmtInf/Strd"}
-
-PRIMITIVES = ["P1a", "P1b", "P1c", "P1d",
-              "P2a", "P2b", "P2c", "P2d",
+PRIMITIVES = ["P1a", "P1b", "P1c", "P1d", "P2a", "P2b", "P2c", "P2d",
               "P3a", "P3b", "P3c"]
-FAMILY = {p: p[:2] for p in PRIMITIVES}          # P1a -> P1
-
-# Adversary cost: operational effort + risk that the manipulation is noticed.
+FAMILY = {p: p[:2] for p in PRIMITIVES}
 PRIM_COST = {"P1a": 0.30, "P1b": 0.25, "P1c": 0.15, "P1d": 0.20,
              "P2a": 0.05, "P2b": 0.08, "P2c": 0.04, "P2d": 0.10,
              "P3a": 0.45, "P3b": 0.35, "P3c": 0.55}
+# Pre-registered from the primitive definitions BEFORE any v3 result was
+# seen (analysis/primitive_labels.json carries the rationale): does the edit
+# make two elements of the same message, or an element and the creditor's
+# static profile, inconsistent with each other?
+CONTRADICTION = {"P1a": 0, "P1b": 1, "P1c": 0, "P1d": 0, "P2a": 1, "P2b": 1,
+                 "P2c": 0, "P2d": 1, "P3a": 0, "P3b": 0, "P3c": 0}
+CAPABILITY = {p: ("route choice" if p == "P3a" else "originator or PSP")
+              for p in PRIMITIVES}
 
-# --- screening-abstraction parameters (paper IV-B) -------------------------
-# CALIBRATION WARNING: SEL is a ratio of pass-through probabilities and is
-# therefore very sensitive to the baseline pi_0. Never report SEL at a single
-# operating point. Use --target-pi0 to solve for P_NAME, and sweep it.
-P_NAME = 0.90     # P(name match | party name sits in a screened element)
-PI_FLOOR = 0.15   # residual alert prob. from controls the evader cannot reach
-TAU = 0.55        # risk-score alert threshold
-TEMP = 0.06       # evader rationality temperature; 0.0 => perfect arg-min
-BENIGN_BATCH_RATE = 0.30   # P(pain.001 is a multi-transaction file). Set to
-                           # 0.0 to reproduce the pre-fix behaviour, where
-                           # n_splits>1 identified gaming at precision 1.0.
+# --- screening-abstraction parameters; calibrated by calibrate() -----------
+P_NAME = 0.90
+PI_FLOOR = 0.10
+TAU = 0.55
+TEMP = 0.10
+
+
+@dataclass
+class GenConfig:
+    """Generator configuration. A is the main setting; B is an independently
+    parameterised shift used only as a test distribution."""
+    name: str = "A"
+    pairs_per: int = 20                 # n / number of pairs
+    pair_concentration: float = 1.0     # Dirichlet alpha for pair volumes
+    profile_alpha: float = 20.0         # concentration around industry profile
+    profile_perturb: float = 0.0        # mix profile with uniform
+    industry_weights: tuple = (1, 1, 1, 1, 1, 1)
+    corridor_weights: tuple = (1, 1, 1, 1, 1)
+    path_pref_beta: tuple = (2.0, 2.0)  # per-pair P(pain.001)
+    batch_rate: float = 0.30            # P(a pain.001 file is batched), scaled per pair
+    batch_size_range: tuple = (2, 49)   # typical size drawn per pair (log-uniform)
+    batch_tail: float = 0.10            # share of batched files drawn from 50-200
+    ultimate_beta: tuple = (3.0, 1.0)   # per-pair P(ultimate debtor present)
+    ult_names: tuple = (1, 3)           # ultimate names a pair uses
+    amount_logmean: float = 10.2
+    amount_pair_sd: float = 0.5
+    amount_msg_sd: float = 1.2
+    defect_mix: tuple = (0.35, 0.30, 0.20, 0.15)
+    rmt_words_max: int = 6
+    rmt_second_ref: float = 0.3
+    name_len: tuple = (4, 17)
+    route_choice_rate: float = 0.30     # illicit records whose actor can pick the path
+    listed_ultimate_share: float = 0.5  # listed party is the ultimate debtor
+
+
+CONFIG_A = GenConfig()
+CONFIG_B = GenConfig(name="B", pairs_per=30, pair_concentration=0.5,
+                     profile_alpha=8.0, profile_perturb=0.2,
+                     industry_weights=(2, 1, 1, 2, 1, 1),
+                     corridor_weights=(1, 2, 2, 1, 1), path_pref_beta=(1.5, 3.0),
+                     batch_rate=0.45, batch_size_range=(2, 80), batch_tail=0.2,
+                     ultimate_beta=(2.0, 1.5), ult_names=(1, 5),
+                     amount_logmean=10.6, amount_pair_sd=0.7, amount_msg_sd=1.5,
+                     defect_mix=(0.25, 0.35, 0.25, 0.15), rmt_words_max=10,
+                     rmt_second_ref=0.5, name_len=(3, 24),
+                     route_choice_rate=0.5, listed_ultimate_share=0.6)
+CONFIGS = {"A": CONFIG_A, "B": CONFIG_B}
+
+
+def _party_name(rng, cfg):
+    return "".join(rng.choice(_LETTERS, int(rng.integers(*cfg.name_len))))
+
+
+def _remittance(rng, cfg):
+    rmt = f"INV{int(rng.integers(1e5, 1e6))}"
+    nw = int(rng.integers(0, cfg.rmt_words_max + 1))
+    if nw:
+        rmt += " " + " ".join(rng.choice(RMT_WORDS, nw))
+    if rng.random() < cfg.rmt_second_ref:
+        rmt += f" {int(rng.integers(1e3, 1e8))}"
+    return rmt
 
 
 # ===========================================================================
+# Records.
+# ===========================================================================
+@dataclass
+class Pair:
+    pair_id: int
+    dbtr_nm: str
+    dbtr_ctry: str
+    cdtr_nm: str
+    cdtr_ctry: str
+    industry: str
+    purpose_codes: list
+    purpose_probs: np.ndarray
+    p_pain: float
+    batch_p: float
+    batch_mu: float
+    p_ult: float
+    ult_names: list
+    amount_mu: float
+    twn_nm: str
+    strt_nm: str
+
+
 @dataclass
 class Message:
     msg_id: str
+    t: int
+    pair_id: int
     msg_type: str                 # "pain.001" | "pacs.008"
     dbtr_nm: str
     dbtr_ctry: str
@@ -143,100 +192,145 @@ class Message:
     strt_nm: str | None
     adr_line: list
     rmt_ustrd: str
-    name_in_screened: bool        # party of interest sits inside F_s
-    name_truncated: bool
     n_splits: int
-    pair_id: int
-    # ground truth
+    listed_party: str | None = None   # "debtor" | "ultimate" | None
+    listed_nm: str | None = None
+    name_truncated: bool = False
+    route_choice: bool = False
     illicit: bool = False
     gamed: bool = False
     primitives: tuple = ()
     pi_0: float = 0.0
     pi_m: float = 0.0
-    defect: str | None = None     # accidental defect injected, if any
+    defect: str | None = None
+    orig: "Message | None" = None
+
+
+def listed_in_screened(m: Message) -> bool:
+    """Does the listed party's name sit in an element the current path
+    screens? P1a moves it out, P1d omits it, P3c replaces it, P3a changes the
+    path's screened set."""
+    if not m.illicit or m.listed_party is None:
+        return False
+    if m.listed_party == "debtor":
+        return "Dbtr/Nm" in SCREENED[m.msg_type]
+    return (m.ultmt_dbtr_nm is not None and "UltmtDbtr/Nm" in SCREENED[m.msg_type]
+            and (m.ultmt_dbtr_nm == m.listed_nm or m.name_truncated
+                 and m.listed_nm.startswith(m.ultmt_dbtr_nm)))
 
 
 # ===========================================================================
-# Screening abstraction pi(x): name match over F_s + additive risk score.
+# Screening abstraction pi(x).
 # ===========================================================================
-def screening_prob(m: Message) -> float:
-    p_name = 0.0
-    if m.illicit and m.name_in_screened:
-        p_name = (0.35 / 0.90) * P_NAME if m.name_truncated else P_NAME
-    s = PURPOSE_RISK.get(m.purpose, 0.32)          # absent code -> weak prior
+def _score(m: Message) -> float:
+    a_child = m.amount / max(1, m.n_splits)          # splitting dilutes the amount term only
+    s = PURPOSE_RISK.get(m.purpose, 0.32)
     s += CORRIDOR_RISK.get((m.dbtr_ctry, m.cdtr_ctry), 0.25)
-    s += 0.20 * min(1.0, m.amount / 250_000.0)
+    s += 0.20 * min(1.0, a_child / 250_000.0)
     s += 0.10 if m.ultmt_dbtr_nm is None else 0.0
     s += 0.08 if (m.twn_nm is None or m.ctry is None) else 0.0
-    s /= m.n_splits ** 0.5                          # splitting dilutes amount
-    p_score = 1.0 / (1.0 + math.exp(-8.0 * (s - TAU)))
+    return s
+
+
+def _legs(m: Message):
+    p_name = 0.0
+    if listed_in_screened(m):
+        p_name = (0.35 / 0.90) * P_NAME if m.name_truncated else P_NAME
+    p_score = 1.0 / (1.0 + math.exp(-8.0 * (_score(m) - TAU)))
     floor = PI_FLOOR if m.illicit else 0.0
+    return p_name, p_score, floor
+
+
+def screening_prob(m: Message) -> float:
+    """Per-message alert probability (the evader's objective)."""
+    p_name, p_score, floor = _legs(m)
     return 1.0 - (1.0 - p_name) * (1.0 - p_score) * (1.0 - floor)
 
 
+def screening_prob_attempt(m: Message) -> float:
+    """Attempt-level alert probability: the name leg and the residual floor
+    act once per payment attempt, the score leg once per child transaction,
+    and the attempt is alerted if any child is."""
+    p_name, p_score, floor = _legs(m)
+    return 1.0 - (1.0 - p_name) * (1.0 - floor) * (1.0 - p_score) ** max(1, m.n_splits)
+
+
 # ===========================================================================
-# Evasion primitives.
+# Evasion primitives, admissibility, best response.
 # ===========================================================================
-def apply_primitive(m: Message, p: str, rng) -> Message:
+def apply_primitive(m: Message, p: str, rng, cfg: GenConfig) -> Message:
+    """Apply one primitive. Invariants: amount total, currency, debtor and
+    creditor countries, and the economic originator and beneficiary are
+    unchanged by every primitive. P3a changes the message path (single
+    transactions only), P3b the decomposition, P3c the represented party
+    chain (an intermediary replaces the ultimate party element)."""
     x = copy(m)
     x.adr_line = list(m.adr_line)
-
     if p == "P1a":                       # ultimate-party name -> RmtInf/Ustrd
-        moved = x.ultmt_dbtr_nm or x.dbtr_nm
-        x.rmt_ustrd = f"{x.rmt_ustrd} REF {moved}".strip()
+        x.rmt_ustrd = f"{x.rmt_ustrd} REF {x.ultmt_dbtr_nm}".strip()
         x.ultmt_dbtr_nm = None
-        x.name_in_screened = False
-    elif p == "P1b":                     # address destructuring
-        x.adr_line.insert(0, f"{x.twn_nm} {x.ctry}")
-        x.twn_nm = str(rng.choice(TOWNS))
-        x.ctry = x.dbtr_ctry
-    elif p == "P1c":                     # truncate below fuzzy-match threshold
-        x.name_truncated = True
-        if x.ultmt_dbtr_nm:
-            x.ultmt_dbtr_nm = x.ultmt_dbtr_nm[:4]
-        x.cdtr_nm = x.cdtr_nm[:4]
-    elif p == "P1d":                     # drop the ultimate debtor
+    elif p == "P1b":                     # true town+country into a free-text line;
+        x.adr_line.insert(0, f"{x.twn_nm} {x.ctry}")   # structured town now disagrees
+        x.twn_nm = str(rng.choice([t for t in TOWNS if t != x.twn_nm]))
+    elif p == "P1c":                     # truncate the LISTED party's name
+        if x.listed_party == "ultimate":
+            if x.ultmt_dbtr_nm:              # no-op if an earlier edit removed it
+                x.ultmt_dbtr_nm = x.ultmt_dbtr_nm[:4]; x.name_truncated = True
+        else:
+            x.dbtr_nm = x.dbtr_nm[:4]; x.name_truncated = True
+    elif p == "P1d":                     # omit the ultimate debtor
         x.ultmt_dbtr_nm = None
-        x.name_in_screened = False
-    elif p == "P2a":                     # purpose swap to lowest-risk code
+    elif p == "P2a":                     # purpose swap to the lowest-weight plausible code
         x.purpose = min(("GDDS", "SUPP", "SALA", "SERV"), key=PURPOSE_RISK.get)
     elif p == "P2b":                     # category-purpose swap
         x.ctgy_purpose = "SALA"
     elif p == "P2c":                     # omit the purpose code
         x.purpose = None
-    elif p == "P2d":                     # code says one thing, text another
+    elif p == "P2d":                     # code says one thing, narrative another
         x.rmt_ustrd = f"{x.rmt_ustrd} INVOICE GOODS SHIPMENT".strip()
         x.purpose = "SALA"
-    elif p == "P3a":                     # message-type substitution
+    elif p == "P3a":                     # same payment intent, other path
         x.msg_type = "pacs.008" if x.msg_type == "pain.001" else "pain.001"
-        x.name_in_screened = False
-    elif p == "P3b":                     # in-message structuring
-        # Benign pain.001 files already batch, so the evader increases the
-        # split count rather than creating batching from nothing.
+    elif p == "P3b":                     # decompose into 3-7x more children, capped at 200
         x.n_splits = min(200, max(x.n_splits, 1) * int(rng.integers(3, 8)))
-    elif p == "P3c":                     # party-chain insertion
-        x.ultmt_dbtr_nm = f"INTERMEDIARY{int(rng.integers(100, 999))}"
-        x.name_in_screened = False
+    elif p == "P3c":                     # an intermediary replaces the ultimate party
+        x.ultmt_dbtr_nm = _party_name(rng, cfg)
     return x
 
 
-def best_response(m: Message, k: int, lam: float, knowledge: str, rng):
-    """Evader solves paper eq. (1) over primitive subsets of size <= k.
+def admissible(m: Message, knowledge: str) -> list:
+    """Per-record admissible set. Black-box adversaries lack the targeted code
+    substitutions. P1a/P1d/P3c need an ultimate-party element to act on. P3a
+    needs route choice and a single-transaction payment. P3b is file
+    decomposition, so it needs a pain.001 file."""
+    pool = []
+    for p in PRIMITIVES:
+        if knowledge == "black" and p in ("P2a", "P2b", "P2d"):
+            continue
+        if p in ("P1a", "P1d", "P3c") and m.ultmt_dbtr_nm is None:
+            continue
+        if p == "P1c" and m.listed_party == "ultimate" and m.ultmt_dbtr_nm is None:
+            continue
+        if p == "P3a" and not (m.route_choice and m.n_splits == 1):
+            continue
+        if p == "P3b" and m.msg_type != "pain.001":
+            continue
+        pool.append(p)
+    return pool
 
-    A perfectly rational evader concentrates on a single cheapest primitive,
-    which starves the per-primitive ablation of samples. We sample from a
-    softmax over admissible responses instead; TEMP -> 0 recovers the arg-min.
-    TEMP is a stated methodological parameter and must be reported.
-    """
-    pool = (PRIMITIVES if knowledge == "grey"
-            else [p for p in PRIMITIVES if not p.startswith("P2")] + ["P2c"])
+
+def best_response(m: Message, k: int, lam: float, knowledge: str, rng, cfg: GenConfig):
+    """Evader solves eq. (1) over admissible primitive subsets of size <= k,
+    sampling among improving subsets and the no-edit option with a softmax of
+    temperature TEMP. Keeps the unmanipulated original on the result."""
+    pool = admissible(m, knowledge)
     base_obj = screening_prob(m)
     cands = [((), base_obj, m)]
     for r in range(1, k + 1):
         for combo in itertools.combinations(pool, r):
             y = m
             for p in combo:
-                y = apply_primitive(y, p, rng)
+                y = apply_primitive(y, p, rng, cfg)
             obj = screening_prob(y) + lam * sum(PRIM_COST[p] for p in combo)
             if obj < base_obj:
                 cands.append((combo, obj, y))
@@ -247,165 +341,151 @@ def best_response(m: Message, k: int, lam: float, knowledge: str, rng):
         w = np.exp(-(objs - objs.min()) / TEMP)
         combo, _, out = cands[int(rng.choice(len(cands), p=w / w.sum()))]
     out = copy(out)
+    out.adr_line = list(out.adr_line)
     out.gamed = len(combo) > 0
     out.primitives = combo
     out.pi_0 = base_obj
     out.pi_m = screening_prob(out)
+    if out.gamed:
+        o = copy(m)
+        o.adr_line = list(m.adr_line)
+        o.orig = None
+        out.orig = o
     return out
 
 
 # ===========================================================================
-# Generator.
+# Generator: pairs with latent behaviour, messages in time order.
 # ===========================================================================
-def generate(n, eta, rho, seed, k=2, lam=0.35, knowledge="grey"):
-    rng = np.random.default_rng(seed)
-    out = []
-    n_pairs = max(2, n // 20)
-    for i in range(n):
-        dc, cc = CORRIDORS[int(rng.integers(len(CORRIDORS)))]
-        ind = INDUSTRIES[int(rng.integers(len(INDUSTRIES)))]
+def make_pairs(n_pairs: int, rng, cfg: GenConfig) -> list:
+    ind_w = np.array(cfg.industry_weights, float); ind_w /= ind_w.sum()
+    cor_w = np.array(cfg.corridor_weights, float); cor_w /= cor_w.sum()
+    pairs = []
+    for i in range(n_pairs):
+        dc, cc = CORRIDORS[int(rng.choice(len(CORRIDORS), p=cor_w))]
+        ind = INDUSTRIES[int(rng.choice(len(INDUSTRIES), p=ind_w))]
         prof = INDUSTRY_PURPOSE[ind]
         codes = list(prof)
-        probs = np.array(list(prof.values()), dtype=float)
-        m = Message(
-            msg_id=f"MSG{i:09d}",
-            msg_type="pain.001" if rng.random() < 0.5 else "pacs.008",
-            dbtr_nm=_party_name(rng),
-            dbtr_ctry=dc,
-            cdtr_nm=_party_name(rng),
-            cdtr_ctry=cc,
-            cdtr_industry=ind,
-            amount=round(float(np.exp(rng.normal(10.2, 1.4))), 2),
-            ccy="EUR" if dc in ("DE", "FR") else "USD",
-            purpose=str(rng.choice(codes, p=probs / probs.sum())),
-            ctgy_purpose=str(rng.choice(CATEGORY_CODES)),
-            ultmt_dbtr_nm=(_party_name(rng) if rng.random() < 0.75 else None),
-            twn_nm=str(rng.choice(TOWNS)),
-            ctry=dc,
-            strt_nm=f"STREET {int(rng.integers(1, 200))}",
-            adr_line=[],
-            rmt_ustrd=_remittance(rng),
-            name_in_screened=True,
-            name_truncated=False,
-            n_splits=1,          # set below
-            pair_id=int(rng.integers(0, n_pairs)),
-        )
-        # Benign batching. pain.001 is a FILE: corporates routinely submit
-        # payroll and supplier runs as one instruction with many transactions.
-        # pacs.008 is single-transaction. Without this the generator makes
-        # n_splits>1 a perfect gaming indicator covering ~60% of positives,
-        # which is backwards from real traffic and inflates every detector.
-        if m.msg_type == "pain.001" and rng.random() < BENIGN_BATCH_RATE:
-            # 2-49 transactions for 90% of batched files, 50-200 for the rest,
-            # so benign traffic has support up to the P3b cap of 200.
-            m.n_splits = (int(rng.integers(2, 50)) if rng.random() < 0.9
-                          else int(rng.integers(50, 201)))
-        # Accidental defects at rate eta. Mix taken from the failure modes
-        # market-practice guidance reports (PMPG v1.1, Jul 2024).
-        if rng.random() < eta:
-            d = rng.random()
-            if d < 0.35:
-                m.rmt_ustrd += f" PURPOSE {m.purpose}"
-                m.purpose = None
-                m.defect = "purpose_in_remittance"
-            elif d < 0.65:
-                m.adr_line.append(str(m.twn_nm))
-                m.twn_nm = None
-                m.defect = "partial_destructuring"
-            elif d < 0.85:
-                m.ultmt_dbtr_nm = None
-                m.defect = "ultimate_party_absent"
-            else:
-                m.ctgy_purpose = None
-                m.defect = "category_absent"
+        base = np.array([prof[c] for c in codes], float)
+        if cfg.profile_perturb > 0:
+            base = (1 - cfg.profile_perturb) * base + cfg.profile_perturb / len(codes)
+        probs = rng.dirichlet(cfg.profile_alpha * base)
+        n_ult = int(rng.integers(cfg.ult_names[0], cfg.ult_names[1] + 1))
+        pairs.append(Pair(
+            pair_id=i, dbtr_nm=_party_name(rng, cfg), dbtr_ctry=dc,
+            cdtr_nm=_party_name(rng, cfg), cdtr_ctry=cc, industry=ind,
+            purpose_codes=codes, purpose_probs=probs,
+            p_pain=float(rng.beta(*cfg.path_pref_beta)),
+            batch_p=float(min(1.0, cfg.batch_rate * 2.0 * rng.beta(2.0, 2.0))),
+            batch_mu=float(rng.uniform(math.log(cfg.batch_size_range[0]),
+                                       math.log(cfg.batch_size_range[1]))),
+            p_ult=float(rng.beta(*cfg.ultimate_beta)),
+            ult_names=[_party_name(rng, cfg) for _ in range(n_ult)],
+            amount_mu=float(rng.normal(cfg.amount_logmean, cfg.amount_pair_sd)),
+            twn_nm=str(rng.choice(TOWNS)), strt_nm=f"STREET {int(rng.integers(1, 200))}"))
+    return pairs
 
+
+def generate(n, eta, rho, seed, k=2, lam=0.18, knowledge="grey", cfg: GenConfig = CONFIG_A):
+    rng = np.random.default_rng(seed)
+    n_pairs = max(2, n // cfg.pairs_per)
+    pairs = make_pairs(n_pairs, rng, cfg)
+    w = rng.dirichlet(np.full(n_pairs, cfg.pair_concentration))
+    seq = rng.choice(n_pairs, size=n, p=w)
+    dm = np.cumsum(cfg.defect_mix)
+    out = []
+    for i in range(n):
+        P = pairs[int(seq[i])]
+        msg_type = "pain.001" if rng.random() < P.p_pain else "pacs.008"
+        m = Message(
+            msg_id=f"MSG{i:09d}", t=i, pair_id=P.pair_id, msg_type=msg_type,
+            dbtr_nm=P.dbtr_nm, dbtr_ctry=P.dbtr_ctry, cdtr_nm=P.cdtr_nm,
+            cdtr_ctry=P.cdtr_ctry, cdtr_industry=P.industry,
+            amount=round(float(math.exp(rng.normal(P.amount_mu, cfg.amount_msg_sd))), 2),
+            ccy="EUR" if P.dbtr_ctry in ("DE", "FR") else "USD",
+            purpose=str(rng.choice(P.purpose_codes, p=P.purpose_probs)),
+            ctgy_purpose=str(rng.choice(CATEGORY_CODES)),
+            ultmt_dbtr_nm=(str(rng.choice(P.ult_names)) if rng.random() < P.p_ult else None),
+            twn_nm=P.twn_nm, ctry=P.dbtr_ctry, strt_nm=P.strt_nm, adr_line=[],
+            rmt_ustrd=_remittance(rng, cfg), n_splits=1)
+        if msg_type == "pain.001" and rng.random() < P.batch_p:
+            if rng.random() < cfg.batch_tail:
+                m.n_splits = int(rng.integers(50, 201))
+            else:
+                m.n_splits = int(min(200, max(2, round(math.exp(rng.normal(P.batch_mu, 0.35))))))
+        if rng.random() < eta:                      # one ordinary data-quality defect
+            d = rng.random()
+            if d < dm[0]:
+                m.rmt_ustrd += f" PURPOSE {m.purpose}"; m.purpose = None
+                m.defect = "purpose_in_remittance"
+            elif d < dm[1]:
+                m.adr_line.append(str(m.twn_nm)); m.twn_nm = None
+                m.defect = "partial_destructuring"
+            elif d < dm[2]:
+                m.ultmt_dbtr_nm = None; m.defect = "ultimate_party_absent"
+            else:
+                m.ctgy_purpose = None; m.defect = "category_absent"
         m.illicit = bool(rng.random() < rho)
-        m.pi_0 = m.pi_m = screening_prob(m)
         if m.illicit:
-            m = best_response(m, k, lam, knowledge, rng)
+            m.listed_party = "ultimate" if rng.random() < cfg.listed_ultimate_share else "debtor"
+            if m.listed_party == "ultimate" and m.ultmt_dbtr_nm is None:
+                m.ultmt_dbtr_nm = str(rng.choice(P.ult_names))   # the listed party is on the message
+                if m.defect == "ultimate_party_absent":
+                    m.defect = None
+            m.listed_nm = m.ultmt_dbtr_nm if m.listed_party == "ultimate" else m.dbtr_nm
+            m.route_choice = bool(rng.random() < cfg.route_choice_rate)
+        m.pi_0 = m.pi_m = screening_prob(m)
+        if m.illicit and k > 0:
+            m = best_response(m, k, lam, knowledge, rng, cfg)
         out.append(m)
     return out
 
 
-def _probe(eta, seed, knowledge, n_probe):
-    """Un-evaded illicit sample; returns (mean pi_0, mean p_name, mean p_score)."""
-    probe = generate(n_probe, eta, 1.0, seed + 991, k=0, lam=1.0,
-                     knowledge=knowledge)
-    pis = np.array([m.pi_0 for m in probe])
-    pn, ps = [], []
-    for m in probe:
-        pn.append((0.35 / 0.90) * P_NAME if m.name_truncated else P_NAME)
-        s = PURPOSE_RISK.get(m.purpose, 0.32)
-        s += CORRIDOR_RISK.get((m.dbtr_ctry, m.cdtr_ctry), 0.25)
-        s += 0.20 * min(1.0, m.amount / 250_000.0)
-        s += 0.10 if m.ultmt_dbtr_nm is None else 0.0
-        s += 0.08 if (m.twn_nm is None or m.ctry is None) else 0.0
-        s /= m.n_splits ** 0.5
-        ps.append(1.0 / (1.0 + math.exp(-8.0 * (s - TAU))))
-    return float(pis.mean()), float(np.mean(pn)), float(np.mean(ps))
+# ===========================================================================
+# Calibration of the screening abstraction.
+# ===========================================================================
+def _probe(eta, seed, knowledge, n_probe, cfg):
+    probe = generate(n_probe, eta, 1.0, seed + 991, k=0, lam=1.0, knowledge=knowledge, cfg=cfg)
+    pn = np.array([_legs(m)[0] for m in probe]); ps = np.array([_legs(m)[1] for m in probe])
+    pi = np.array([screening_prob(m) for m in probe])
+    scr = np.array([listed_in_screened(m) for m in probe], float)
+    return float(pi.mean()), float(pn.mean()), float(ps.mean()), float(scr.mean())
 
 
-def _mean_pi0(eta, seed, knowledge, n_probe):
-    return _probe(eta, seed, knowledge, n_probe)[0]
-
-
-def calibrate_p_name(target_pi0, eta, seed, knowledge="grey", name_share=0.6,
-                     n_probe=4000, tol=3e-3, iters=40, verbose=True):
-    """Calibrate the screening abstraction to a target baseline alert
-    probability pi_0, SPLITTING the target across the two legs of pi.
-
-    Why the split matters. pi has a name-matching leg (defeated by P1a/P1c/P1d)
-    and a risk-scoring leg (defeated by P2*). An earlier version bisected
-    P_NAME alone; because the scoring leg on its own already exceeded most
-    targets, P_NAME was driven to ~0.004, the name leg went vestigial, and the
-    evader stopped selecting P1 primitives entirely -- 1 selection in 20,000
-    messages. The benchmark then could not study misfielding at all, which is
-    the paper's headline attack family.
-
-    So: allocate the survival probability (1 - pi_0) multiplicatively between
-    the legs. name_share = 0.6 means the name leg accounts for 60% of the
-    log-survival, i.e. name matching does most of the baseline detection work,
-    which is how sanctions screening is usually configured. name_share is a
-    stated modelling parameter -- report it, and sweep it alongside pi_0.
-    """
+def calibrate(target_pi0, eta, seed, knowledge="grey", name_share=0.6, n_probe=4000,
+              cfg: GenConfig = CONFIG_A, iters=40, tol=1e-3, verbose=True):
+    """Split baseline survival multiplicatively between the two legs with the
+    stated name share. P_NAME is set so that the MEAN name-leg probability over
+    an unevaded illicit probe hits its target (the listed name is in a screened
+    element for only a share of records, since the interbank leg does not read
+    ultimate parties); TAU is bisected on the score leg."""
     global P_NAME, TAU
     f = PI_FLOOR
-    surv = (1.0 - target_pi0) / (1.0 - f)            # survival left to split
-    if surv <= 0 or surv >= 1:
-        raise ValueError(f"target pi_0={target_pi0} unreachable with "
-                         f"PI_FLOOR={f}: lower the floor")
+    surv = (1.0 - target_pi0) / (1.0 - f)
+    if not 0 < surv < 1:
+        raise ValueError("target pi_0 unreachable with this floor")
     p_name_t = 1.0 - surv ** name_share
     p_score_t = 1.0 - surv ** (1.0 - name_share)
-
-    # No primitives are applied in the calibration probe (k=0), so no message
-    # is truncated and mean p_name == P_NAME exactly.
-    P_NAME = min(1.0, max(0.0, p_name_t))
-
-    lo, hi = 0.0, 6.0                                 # bisect TAU on the score leg
+    P_NAME = 1.0
+    _, _, _, share = _probe(eta, seed, knowledge, n_probe, cfg)
+    P_NAME = float(min(1.0, p_name_t / max(share, 1e-6)))
+    lo, hi = 0.0, 6.0
     for _ in range(iters):
         TAU = (lo + hi) / 2
-        _, _, ps = _probe(eta, seed, knowledge, n_probe)
+        _, _, ps, _ = _probe(eta, seed, knowledge, n_probe, cfg)
         if abs(ps - p_score_t) < tol:
             break
-        if ps > p_score_t:
-            lo = TAU
-        else:
-            hi = TAU
-
-    pi0, pn, ps = _probe(eta, seed, knowledge, n_probe)
+        lo, hi = (TAU, hi) if ps > p_score_t else (lo, TAU)
+    pi0, pn, ps, share = _probe(eta, seed, knowledge, n_probe, cfg)
     if verbose:
-        ok = "OK" if abs(pi0 - target_pi0) < 0.02 else "NOT REACHED"
-        print(f"[calibrate] P_NAME={P_NAME:.4f} TAU={TAU:.4f} floor={f:.3f} "
-              f"share={name_share} -> pi_0={pi0:.4f} "
-              f"(name {pn:.3f} / score {ps:.3f}) target {target_pi0} [{ok}]",
-              flush=True)
-        if ok != "OK":
-            print("[calibrate] adjust --pi-floor or --name-share.", flush=True)
-    return P_NAME, pi0
+        print(f"[calibrate] P_NAME={P_NAME:.4f} TAU={TAU:.4f} floor={f:.3f} share={name_share} "
+              f"listed-in-screened={share:.3f} -> pi_0={pi0:.4f} (name {pn:.3f} / score {ps:.3f}) "
+              f"target {target_pi0} [{'OK' if abs(pi0 - target_pi0) < 0.02 else 'NOT REACHED'}]", flush=True)
+    return P_NAME, TAU, pi0
 
 
 # ===========================================================================
-# ISO 20022 XML serialisation.
+# XML serialisation (carried over from v2; fully XSD-valid, see scripts/validate_release.py).
 # ===========================================================================
 NS_PAIN = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.09"
 NS_PACS = "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08"
@@ -573,233 +653,218 @@ def validate_corpus(msgs, xsd_dir, limit=500):
     return (len(sample), ok, errs)
 
 
+
 # ===========================================================================
-# Validation constraints C1..C5 -> detector features.
+# Features. Message-level features read the current message only; history
+# features read the pair's STRICTLY EARLIER messages, gamed or not, never a
+# label. Both are computed in one streaming pass in time order.
 # ===========================================================================
 COUNTRY_TOKENS = {c for pair in CORRIDORS for c in pair}
-
-FEATURE_NAMES = ["c1_codelist", "c2_completeness", "c3_crossfield",
-                 "c4_code_narrative", "c5_longitudinal", "purpose_absent",
-                 "len_rmt", "n_adrline", "n_splits", "ultmt_absent",
-                 "name_short"]
-
-
-def build_history(msgs):
-    """Pair-level purpose counts over the messages passed in.
-
-    No gaming label is used. An earlier version excluded gamed messages, so a
-    benign message's own purpose was counted in its pair history while a
-    gamed message's was not: a label leak into C5. detector_scores() now
-    builds one history per fold and scores each row against the history of
-    the OTHER fold, so no row contributes to its own history and no
-    evaluation row's purpose enters the history used to score it.
-    """
-    h = {}
-    for m in msgs:
-        d = h.setdefault(m.pair_id, {})
-        d[m.purpose] = d.get(m.purpose, 0) + 1
-    return h
+FEATURE_NAMES = ["c1_codelist", "c2_completeness", "c3_crossfield", "c4_code_narrative",
+                 "c5_purpose_history", "purpose_absent", "len_rmt", "n_adrline",
+                 "n_splits", "ultmt_absent", "short_name"]
+HIST_NAMES = ["c5_purpose_history", "path_novelty", "split_dev", "ult_novelty",
+              "ult_presence_dev", "amount_dev", "purpose_new"]
 
 
-def features(m: Message, history: dict):
+class PairState:
+    __slots__ = ("n", "purpose", "path", "ns", "s1", "s2", "ult_names", "n_ult", "an", "a1", "a2")
+
+    def __init__(self):
+        self.n = 0; self.purpose = {}; self.path = {}
+        self.ns = 0; self.s1 = 0.0; self.s2 = 0.0
+        self.ult_names = set(); self.n_ult = 0
+        self.an = 0; self.a1 = 0.0; self.a2 = 0.0
+
+    def update(self, m: Message):
+        self.n += 1
+        self.purpose[m.purpose] = self.purpose.get(m.purpose, 0) + 1
+        self.path[m.msg_type] = self.path.get(m.msg_type, 0) + 1
+        ls = math.log(max(1, m.n_splits)); self.ns += 1; self.s1 += ls; self.s2 += ls * ls
+        if m.ultmt_dbtr_nm is not None:
+            self.ult_names.add(m.ultmt_dbtr_nm); self.n_ult += 1
+        la = math.log1p(m.amount); self.an += 1; self.a1 += la; self.a2 += la * la
+
+
+def _dev(x, n, s1, s2):
+    if n < 3:
+        return 0.0
+    mu = s1 / n
+    var = max(0.0, s2 / n - mu * mu)
+    return abs(x - mu) / (math.sqrt(var) + 0.5)
+
+
+def hist_features(m: Message, st: PairState):
+    n = st.n
+    if n == 0:
+        return [0.0] * len(HIST_NAMES)
+    c5 = 1.0 - st.purpose.get(m.purpose, 0) / n
+    path_nov = 1.0 - st.path.get(m.msg_type, 0) / n
+    split_dev = _dev(math.log(max(1, m.n_splits)), st.ns, st.s1, st.s2)
+    ult_nov = float(m.ultmt_dbtr_nm is not None and m.ultmt_dbtr_nm not in st.ult_names)
+    ult_pres_dev = abs(float(m.ultmt_dbtr_nm is not None) - st.n_ult / n)
+    amount_dev = _dev(math.log1p(m.amount), st.an, st.a1, st.a2)
+    purpose_new = float(n >= 3 and m.purpose is not None and st.purpose.get(m.purpose, 0) == 0)
+    return [c5, path_nov, split_dev, ult_nov, ult_pres_dev, amount_dev, purpose_new]
+
+
+def msg_features(m: Message, c5: float):
     c1 = 0.0 if (m.purpose is None or m.purpose in PURPOSE_RISK) else 1.0
     adr_tokens = set(" ".join(m.adr_line).split())
     adr_has_geo = float(bool(adr_tokens & (COUNTRY_TOKENS | set(TOWNS))))
     c2 = float(m.twn_nm is None) + float(m.ctry is None) + adr_has_geo
     prof = INDUSTRY_PURPOSE[m.cdtr_industry]
-    c3 = (1.0 - (prof.get(m.purpose, 0.0) if m.purpose else 0.0)) \
-        + float(m.ultmt_dbtr_nm is None)
-    c4 = float(m.purpose == "SALA"
-               and any(w in m.rmt_ustrd for w in ("GOODS", "INVOICE", "SHIPMENT")))
-    hist = history.get(m.pair_id, {})               # history excludes m
-    others = sum(hist.values())
-    same = hist.get(m.purpose, 0)
-    c5 = 1.0 - (same / others) if others > 0 else 0.0
-    return [c1, c2, c3, c4, c5,
-            float(m.purpose is None), float(len(m.rmt_ustrd)),
-            float(len(m.adr_line)), float(m.n_splits),
-            float(m.ultmt_dbtr_nm is None), float(len(m.cdtr_nm) <= 5)]
+    c3 = (1.0 - (prof.get(m.purpose, 0.0) if m.purpose else 0.0)) + float(m.ultmt_dbtr_nm is None)
+    c4 = float(m.purpose == "SALA" and any(w in m.rmt_ustrd for w in ("GOODS", "INVOICE", "SHIPMENT")))
+    short = float(min(len(m.dbtr_nm), len(m.cdtr_nm), len(m.ultmt_dbtr_nm or "X" * 99)) <= 5)
+    return [c1, c2, c3, c4, c5, float(m.purpose is None), float(len(m.rmt_ustrd)),
+            float(len(m.adr_line)), float(m.n_splits), float(m.ultmt_dbtr_nm is None), short]
 
 
 def raw_features(m: Message):
-    """Features for D2, the naive supervised baseline.
-
-    NEVER put PURPOSE_RISK or CORRIDOR_RISK in here. Those are the evader's
-    own objective terms and leak the label -- they drove D2 to AUC ~0.998 in
-    an early version. One-hot codes only.
-    """
+    """D2/D6 inputs (26 dims): one-hot codes, corridor, amount, splits, completeness.
+    Never the evader's own objective terms."""
     def onehot(v, vocab):
         z = [0.0] * (len(vocab) + 1)
         z[vocab.index(v) if v in vocab else len(vocab)] = 1.0
         return z
     corr_vocab = [f"{a}{b}" for a, b in CORRIDORS]
-    return (onehot(m.purpose, PURPOSE_CODES)
-            + onehot(m.ctgy_purpose, CATEGORY_CODES)
+    return (onehot(m.purpose, PURPOSE_CODES) + onehot(m.ctgy_purpose, CATEGORY_CODES)
             + onehot(f"{m.dbtr_ctry}{m.cdtr_ctry}", corr_vocab)
-            + [math.log1p(m.amount), float(m.n_splits),
-               float(m.ultmt_dbtr_nm is None), float(m.twn_nm is None),
-               float(len(m.rmt_ustrd))])
+            + [math.log1p(m.amount), float(m.n_splits), float(m.ultmt_dbtr_nm is None),
+               float(m.twn_nm is None), float(len(m.rmt_ustrd))])
+
+
+def build_features(msgs):
+    """One streaming pass. Returns X (11), H (7), R (25) for every message,
+    the same three matrices for the unmanipulated originals of gamed messages
+    (rows are zero where there is no original), y, pair ids and t."""
+    n = len(msgs)
+    X = np.zeros((n, len(FEATURE_NAMES))); H = np.zeros((n, len(HIST_NAMES)))
+    R = np.zeros((n, len(raw_features(msgs[0]))))
+    Xo = np.zeros_like(X); Ho = np.zeros_like(H); Ro = np.zeros_like(R)
+    has_orig = np.zeros(n, bool)
+    states = {}
+    for i, m in enumerate(msgs):
+        st = states.get(m.pair_id)
+        if st is None:
+            st = states[m.pair_id] = PairState()
+        h = hist_features(m, st); H[i] = h; X[i] = msg_features(m, h[0]); R[i] = raw_features(m)
+        if m.orig is not None:
+            ho = hist_features(m.orig, st); Ho[i] = ho; Xo[i] = msg_features(m.orig, ho[0]); Ro[i] = raw_features(m.orig)
+            has_orig[i] = True
+        st.update(m)
+    y = np.array([int(m.gamed) for m in msgs])
+    pid = np.array([m.pair_id for m in msgs])
+    return dict(X=X, H=H, R=R, Xo=Xo, Ho=Ho, Ro=Ro, has_orig=has_orig, y=y, pid=pid)
 
 
 # ===========================================================================
-# Detectors and metrics.
+# Detectors under the temporal protocol.
 # ===========================================================================
-def _z(v):
-    return (v - v.mean()) / (v.std() + 1e-9)
+DETECTORS = ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"]
+LABELLED = {"D2", "D6"}
 
 
-def detector_scores(msgs, seed=0, train_mask=None, extra=False):
-    """Return ({name: score array}, y).
+def temporal_split(n, train=0.6, val=0.2):
+    idx = np.arange(n)
+    return idx < int(train * n), (idx >= int(train * n)) & (idx < int((train + val) * n)), idx >= int((train + val) * n)
 
-    Learned detectors are two-fold cross-fitted. Rows are split by index
-    parity; each learned model is fitted on one fold (further restricted by
-    train_mask) and scores only the other fold, so no row is scored by a model
-    that saw it. An earlier version fitted on the even rows and scored every
-    row, which placed half of D2's training data inside its own test set and
-    inflated its in-distribution AUC by about 0.03 at 50k rows.
 
-    train_mask removes rows that the learned detectors may never train on
-    (used by the held-out-family experiment). D0 and D1 are fixed rules and
-    need no fitting. extra=True adds two standard reference methods, D5 (local
-    outlier factor on the benign C1-C5 feature vector) and D6 (logistic
-    regression on D2's raw features), cross-fitted the same way.
-    """
+def fit_detectors(F, train, seed, allow_labels=True, reuse=None):
+    """Fit every learned detector on the training window only. Returns a
+    scorer callable that maps (X, H, R) to a dict of score arrays. With
+    `reuse` (a previous scorer), the label-free components (isolation forest,
+    LOF, standardisation statistics) are shared and only the two labelled
+    models are refitted, which is what leave-one-family-out needs."""
     from sklearn.ensemble import IsolationForest, HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.neighbors import LocalOutlierFactor
     from sklearn.preprocessing import StandardScaler
+    X, H, R, y = F["X"], F["H"], F["R"], F["y"]
+    benign_tr = train & (y == 0)
+    labelled = allow_labels and y[train].sum() >= 10 and (y[train] == 0).sum() >= 10
+    gb = HistGradientBoostingClassifier(random_state=seed, max_iter=150).fit(R[train], y[train]) if labelled else None
+    scr = StandardScaler().fit(R[train])
+    lr = LogisticRegression(max_iter=1000).fit(scr.transform(R[train]), y[train]) if labelled else None
+    if reuse is not None:
+        iso, scx, lof, z1, z3, hmu, hsd = reuse.parts
+    else:
+        iso = IsolationForest(random_state=seed, n_estimators=200, contamination=0.05).fit(X[benign_tr])
+        scx = StandardScaler().fit(X[benign_tr])
+        lof = LocalOutlierFactor(n_neighbors=20, novelty=True).fit(scx.transform(X[benign_tr]))
+        d1_tr = X[train, 0] + 0.5 * X[train, 1] + X[train, 2] + 1.5 * X[train, 3]
+        d3_tr = -iso.score_samples(X[train])
+        z1 = (d1_tr.mean(), d1_tr.std() + 1e-9); z3 = (d3_tr.mean(), d3_tr.std() + 1e-9)
+        hmu, hsd = H[train].mean(0), H[train].std(0) + 1e-9
 
-    n = len(msgs)
-    fold = np.arange(n) % 2
-    # Out-of-fold pair history: row i's C5 is computed from its pair's
-    # messages in the other fold only. No labels, and no evaluation row
-    # contributes to the history used to score it.
-    hist_by_fold = {f: build_history([m for i, m in enumerate(msgs)
-                                      if fold[i] == f]) for f in (0, 1)}
-    X = np.array([features(m, hist_by_fold[1 - fold[i]])
-                  for i, m in enumerate(msgs)])
-    R = np.array([raw_features(m) for m in msgs])
-    y = np.array([int(m.gamed) for m in msgs])
-    if train_mask is None:
-        train_mask = np.ones(n, dtype=bool)
+    def scorer(X_, H_, R_):
+        d0 = X_[:, 0] + (X_[:, 1] > 1).astype(float)
+        d1 = X_[:, 0] + 0.5 * X_[:, 1] + X_[:, 2] + 1.5 * X_[:, 3]
+        d3 = -iso.score_samples(X_)
+        out = {"D0": d0, "D1": d1, "D3": d3,
+               "D4": (d1 - z1[0]) / z1[1] + (d3 - z3[0]) / z3[1],
+               "D5": -lof.score_samples(scx.transform(X_)),
+               "D7": ((H_ - hmu) / hsd).sum(1)}
+        out["D2"] = gb.predict_proba(R_)[:, 1] if gb is not None else np.zeros(len(X_))
+        out["D6"] = lr.predict_proba(scr.transform(R_))[:, 1] if lr is not None else np.zeros(len(X_))
+        return out
+    scorer.parts = (iso, scx, lof, z1, z3, hmu, hsd)
+    return scorer
 
-    d0 = X[:, 0] + (X[:, 1] > 1).astype(float)                 # C1 + hard C2
-    d1 = X[:, 0] + 0.5 * X[:, 1] + X[:, 2] + 1.5 * X[:, 3]     # rules C1-C4
-    d2, d3, d5, d6 = (np.zeros(n) for _ in range(4))
-    for f in (0, 1):
-        te = fold == f
-        tr = train_mask & ~te
-        labelled = y[tr].sum() >= 10 and (y[tr] == 0).sum() >= 10
-        if labelled:
-            gb = HistGradientBoostingClassifier(random_state=seed,
-                                                max_iter=150).fit(R[tr], y[tr])
-            d2[te] = gb.predict_proba(R[te])[:, 1]
-        benign_tr = tr & (y == 0)
-        iso = IsolationForest(random_state=seed, n_estimators=200,
-                              contamination=0.05).fit(X[benign_tr])
-        d3[te] = -iso.score_samples(X[te])
-        if extra:
-            sc = StandardScaler().fit(X[benign_tr])
-            lof = LocalOutlierFactor(n_neighbors=20, novelty=True)
-            lof.fit(sc.transform(X[benign_tr]))
-            d5[te] = -lof.score_samples(sc.transform(X[te]))
-            if labelled:
-                scr = StandardScaler().fit(R[tr])
-                lr = LogisticRegression(max_iter=1000).fit(scr.transform(R[tr]),
-                                                           y[tr])
-                d6[te] = lr.predict_proba(scr.transform(R[te]))[:, 1]
 
-    # D4 standardises D1 and D3 with the mean and s.d. of the OTHER fold's
-    # (out-of-fold) scores, so a row's own score never enters its statistics.
-    d4 = np.zeros(n)
-    for f in (0, 1):
-        te, ot = fold == f, fold != f
-        d4[te] = ((d1[te] - d1[ot].mean()) / (d1[ot].std() + 1e-9)
-                  + (d3[te] - d3[ot].mean()) / (d3[ot].std() + 1e-9))
-    out = {"D0": d0, "D1": d1, "D2": d2, "D3": d3, "D4": d4}
-    if extra:
-        out["D5"], out["D6"] = d5, d6
-    return out, y
+# ===========================================================================
+# Frozen thresholds and metrics.
+# ===========================================================================
+def frozen_threshold(val_scores, q):
+    """Largest score value v with share(val >= v) >= q, and the label-blind
+    fraction of the tied block needed to alert exactly q of the validation
+    window. Applied unchanged to the test window."""
+    vals, counts = np.unique(val_scores, return_counts=True)
+    vals, counts = vals[::-1], counts[::-1]
+    cum = np.cumsum(counts) / len(val_scores)
+    j = int(np.searchsorted(cum, q, side="left"))
+    j = min(j, len(vals) - 1)
+    above = cum[j - 1] if j > 0 else 0.0
+    frac = float(np.clip((q - above) / (counts[j] / len(val_scores)), 0.0, 1.0))
+    return float(vals[j]), frac
+
+
+def alert_weights_frozen(scores, thr, frac):
+    return (scores > thr).astype(float) + frac * (scores == thr)
+
+
+def metrics_frozen(w, y):
+    tp = float((w * y).sum()); alerts = float(w.sum()); npos = float(y.sum())
+    return {"recovery": tp / max(npos, 1), "precision": tp / alerts if alerts > 0 else 0.0,
+            "alert_rate": alerts / len(y), "alerts_per_detection": alerts / tp if tp > 0 else float("inf"),
+            "tp": tp, "alerts": alerts}
 
 
 def alert_weights(score, budget):
-    """Expected top-budget alert assignment with exact capacity.
-
-    Detector scores are often discrete. A plain ``score >= quantile`` rule can
-    alert far more than the nominal budget when many rows tie at the cutoff.
-    We therefore include every score above the cutoff and assign the tied block
-    the fraction needed to fill exactly ``budget * n`` slots. Reported rates are
-    the expectation under uniform random tie-breaking, without using labels.
-    """
-    score = np.asarray(score, dtype=float)
+    """Exact expected top-`budget` alert assignment with label-blind
+    tie-breaking (analysis metric; the deployable one is frozen_threshold)."""
     n = len(score)
-    if n == 0:
-        return np.zeros(0, dtype=float)
     target = min(float(n), max(0.0, float(budget) * n))
+    order = np.argsort(-score, kind="mergesort")
+    s_sorted = score[order]
+    w = np.zeros(n)
     if target <= 0:
-        return np.zeros(n, dtype=float)
-    if target >= n:
-        return np.ones(n, dtype=float)
-
-    ordered = np.sort(score)[::-1]
-    cutoff = ordered[int(np.ceil(target)) - 1]
-    above = score > cutoff
-    tied = score == cutoff
-    remaining = target - float(above.sum())
-    tie_weight = remaining / max(1, int(tied.sum()))
-    weights = above.astype(float)
-    weights[tied] = min(1.0, max(0.0, tie_weight))
-    return weights
+        return w
+    kth = s_sorted[min(n - 1, int(math.ceil(target)) - 1)]
+    strictly = score > kth
+    n_strict = int(strictly.sum())
+    w[strictly] = 1.0
+    tied = score == kth
+    remaining = target - n_strict
+    if tied.sum() > 0 and remaining > 0:
+        w[tied] = remaining / tied.sum()
+    return w
 
 
 def tpr_at_budget(score, y, budget):
-    weights = alert_weights(score, budget)
-    positive = y == 1
-    return float(weights[positive].sum() / max(1, int(positive.sum())))
-
-
-def alerts_per_million_benign(score, y, budget):
-    weights = alert_weights(score, budget)
-    benign = y == 0
-    return float(1e6 * weights[benign].sum() / max(1, int(benign.sum())))
-
-
-def sel_table(msgs, score, y, budget=0.01, n_boot=1000, seed=0, min_n=30):
-    """SEL and SEL_res per primitive, with bootstrap intervals (eqs. 2, 3)."""
-    rng = np.random.default_rng(seed)
-    flagged = alert_weights(score, budget)
-    base = np.array([i for i, m in enumerate(msgs) if m.illicit and not m.gamed],
-                    dtype=int)
-    delta0 = float(flagged[base].mean()) if len(base) else 0.0
-
-    out = {"_baseline": {"delta0": delta0, "n_unevaded_illicit": int(len(base))}}
-    for p in PRIMITIVES:
-        idx = np.array([i for i, m in enumerate(msgs) if p in m.primitives],
-                       dtype=int)
-        if len(idx) < min_n:
-            continue
-        pi0 = np.array([msgs[i].pi_0 for i in idx])
-        pim = np.array([msgs[i].pi_m for i in idx])
-        fl = flagged[idx].astype(float)
-
-        def _stats(sel):
-            a, b, d = pi0[sel].mean(), pim[sel].mean(), fl[sel].mean()
-            s = (1 - b) / max(1e-9, 1 - a)
-            sr = ((1 - b) * (1 - d)) / max(1e-9, (1 - a) * (1 - delta0))
-            return s, sr
-
-        s, sr = _stats(np.arange(len(idx)))
-        boots = np.array([_stats(rng.integers(0, len(idx), len(idx)))
-                          for _ in range(n_boot)])
-        out[p] = {"n": int(len(idx)),
-                  "SEL": float(s),
-                  "SEL_lo": float(np.percentile(boots[:, 0], 2.5)),
-                  "SEL_hi": float(np.percentile(boots[:, 0], 97.5)),
-                  "SEL_res": float(sr),
-                  "SEL_res_lo": float(np.percentile(boots[:, 1], 2.5)),
-                  "SEL_res_hi": float(np.percentile(boots[:, 1], 97.5)),
-                  "detect_rate": float(fl.mean())}
-    return out
+    w = alert_weights(score, budget)
+    return float((w * y).sum() / max(1, y.sum()))
 
 
 def _midrank(x):
@@ -809,9 +874,6 @@ def _midrank(x):
 
 
 def auc_delong_ci(y, score, z=1.96):
-    """AUC with a DeLong 95% interval via the rank formulation of Sun and Xu
-    (2014). Structural components: for each positive, the share of negatives
-    ranked below it; for each negative, the share of positives ranked above."""
     pos, neg = score[y == 1], score[y == 0]
     m, n = len(pos), len(neg)
     tz = _midrank(np.concatenate([pos, neg]))
@@ -822,169 +884,282 @@ def auc_delong_ci(y, score, z=1.96):
     return auc, max(0.0, auc - z * se), min(1.0, auc + z * se), se
 
 
-def tpr_bootstrap_ci(score, y, budget, n_boot=200, seed=0):
-    """Record-level bootstrap of exact-capacity TPR (threshold re-solved in
-    every resample), 2.5th and 97.5th percentiles."""
+def pair_bootstrap_indices(pid, n_boot, seed):
+    """Yield index arrays that resample debtor-creditor pairs with replacement."""
     rng = np.random.default_rng(seed)
-    n = len(y)
-    vals = []
+    uniq, inv = np.unique(pid, return_inverse=True)
+    groups = [np.where(inv == g)[0] for g in range(len(uniq))]
     for _ in range(n_boot):
-        idx = rng.integers(0, n, n)
-        vals.append(tpr_at_budget(score[idx], y[idx], budget))
-    return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
+        chosen = rng.integers(0, len(uniq), len(uniq))
+        yield np.concatenate([groups[g] for g in chosen])
 
 
-def roc_points(score, y, n=40):
-    """FPR/TPR pairs on a log-spaced FPR grid, ready for pgfplots."""
-    from sklearn.metrics import roc_curve
-    fpr, tpr, _ = roc_curve(y, score)
-    grid = np.concatenate([np.logspace(-4, 0, n), [1.0]])
-    return [(float(g), float(np.interp(g, fpr, tpr))) for g in grid]
+def ci(vals):
+    a = np.asarray(vals, float)
+    a = a[np.isfinite(a)]
+    return [float(np.percentile(a, 2.5)), float(np.percentile(a, 97.5))] if len(a) else [float("nan")] * 2
 
 
-def evaluate(msgs, seed=0, budgets=(0.01, 0.001), boot=1000, want_roc=True,
-             extra=False):
+# ===========================================================================
+# One full evaluation of one corpus under the temporal protocol.
+# ===========================================================================
+def evaluate_run(msgs, seed=0, budgets=(0.01, 0.001), n_boot=200, want_prims=True):
     from sklearn.metrics import roc_auc_score, average_precision_score
-    scores, y = detector_scores(msgs, seed=seed, extra=extra)
-    if y.sum() == 0:
-        raise SystemExit("no gamed messages: raise --rho or lower --lam")
-    res, roc = {}, {}
-    n_boot_metrics = min(int(boot), 200)
-    for name, s in scores.items():
-        row = {"auc": float(roc_auc_score(y, s)),
-               "ap": float(average_precision_score(y, s))}
-        if n_boot_metrics > 0:
-            _, lo, hi, se = auc_delong_ci(y, s)
-            row["auc_ci95"] = [lo, hi]
-            row["auc_se"] = se
+    F = build_features(msgs)
+    n = len(msgs)
+    train, val, test = temporal_split(n)
+    scorer = fit_detectors(F, train, seed)
+    S = scorer(F["X"], F["H"], F["R"])
+    So = scorer(F["Xo"], F["Ho"], F["Ro"])            # originals scored by the same models
+    y, pid = F["y"], F["pid"]
+    yt, pidt = y[test], pid[test]
+    ti = np.where(test)[0]
+    res = {"n": n, "n_train": int(train.sum()), "n_val": int(val.sum()), "n_test": int(test.sum()),
+           "n_gamed_test": int(yt.sum()), "n_gamed": int(y.sum()),
+           "n_illicit_test": int(sum(m.illicit for m in msgs if test[m.t])),
+           "n_pairs_test": int(len(np.unique(pidt))),
+           "prevalence_test": float(yt.mean()),
+           "tpr_ceiling@0.01": float(min(1.0, 0.01 * len(yt) / max(1, yt.sum()))),
+           "tpr_ceiling@0.001": float(min(1.0, 0.001 * len(yt) / max(1, yt.sum()))),
+           "detectors": {}, "thresholds": {}}
+    W = {}; Wo = {}
+    for d in DETECTORS:
+        s = S[d]; st = s[test]
+        row = {"auc": float(roc_auc_score(yt, st)), "ap": float(average_precision_score(yt, st))}
+        a, lo, hi, se = auc_delong_ci(yt, st); row["auc_delong_ci95"] = [lo, hi]
         for b in budgets:
-            row[f"tpr@{b}"] = tpr_at_budget(s, y, b)
-            row[f"benign_alerts_per_M@{b}"] = alerts_per_million_benign(s, y, b)
-            if n_boot_metrics > 0:
-                row[f"tpr@{b}_ci95"] = list(
-                    tpr_bootstrap_ci(s, y, b, n_boot=n_boot_metrics, seed=seed))
-        res[name] = row
-        if want_roc:
-            roc[name] = roc_points(s, y)
-    out = {"detectors": res, "roc": roc,
-           "sel": sel_table(msgs, scores["D4"], y, seed=seed, n_boot=boot),
-           "n": len(msgs), "n_gamed": int(y.sum()),
-           "n_illicit": int(sum(m.illicit for m in msgs))}
-    for b in budgets:
-        out[f"tpr_ceiling@{b}"] = float(min(1.0, b * len(msgs) / max(1, y.sum())))
-    if extra and "D5" in scores:
-        out["sel_D5"] = sel_table(msgs, scores["D5"], y, seed=seed, n_boot=boot)
+            thr, frac = frozen_threshold(s[val], b)
+            res["thresholds"].setdefault(d, {})[str(b)] = [thr, frac]
+            w = alert_weights_frozen(st, thr, frac)
+            W[(d, b)] = w
+            Wo[(d, b)] = alert_weights_frozen(So[d][test], thr, frac)
+            mt = metrics_frozen(w, yt)
+            for kk, v in mt.items():
+                row[f"{kk}@{b}"] = v
+            row[f"topq_recovery@{b}"] = tpr_at_budget(st, yt, b)   # analysis metric
+        res["detectors"][d] = row
+    # ---- pair-clustered bootstrap of test metrics ------------------------
+    boot = {d: {"auc": [], "ap": [], "recovery@0.01": [], "precision@0.01": []} for d in DETECTORS}
+    for idx in pair_bootstrap_indices(pidt, n_boot, seed):
+        yb = yt[idx]
+        if yb.sum() == 0 or yb.sum() == len(yb):
+            continue
+        for d in DETECTORS:
+            sb = S[d][test][idx]
+            boot[d]["auc"].append(roc_auc_score(yb, sb)); boot[d]["ap"].append(average_precision_score(yb, sb))
+            mt = metrics_frozen(W[(d, 0.01)][idx], yb)
+            boot[d]["recovery@0.01"].append(mt["recovery"]); boot[d]["precision@0.01"].append(mt["precision"])
+    for d in DETECTORS:
+        for kk, v in boot[d].items():
+            res["detectors"][d][kk + "_ci95"] = ci(v)
+    # ---- paired counterfactual SEL on the test window ----------------------
+    if want_prims:
+        res["sel"] = paired_sel(msgs, ti, S, So, W, Wo, pidt, seed, n_boot)
+    return res
+
+
+def paired_sel(msgs, ti, S, So, W, Wo, pidt, seed, n_boot, budget=0.01, dets=("D1", "D2", "D4", "D5", "D7")):
+    """Paired SEL: every gamed test record contributes its own manipulated
+    and original alert probabilities (and detector decisions at the frozen
+    threshold). SEL = sum(1-pi_m) / sum(1-pi_0); residual multiplies each side
+    by (1 - decision). Attempt-level SEL uses screening_prob_attempt."""
+    gam = np.array([msgs[i].gamed for i in ti])
+    pi0 = np.array([msgs[i].pi_0 for i in ti]); pim = np.array([msgs[i].pi_m for i in ti])
+    pa0 = np.array([screening_prob_attempt(msgs[i].orig) if msgs[i].orig else 0.0 for i in ti])
+    pam = np.array([screening_prob_attempt(msgs[i]) for i in ti])
+    prim_mask = {p: np.array([p in msgs[i].primitives for i in ti]) for p in PRIMITIVES}
+    prim_mask["all"] = gam.copy()
+
+    def stats(rows):
+        out = {"n": int(rows.sum())}
+        if rows.sum() == 0:
+            return out
+        a, b = (1 - pim[rows]).sum(), (1 - pi0[rows]).sum()
+        out["SEL"] = float(a / max(b, 1e-9))
+        out["SEL_attempt"] = float((1 - pam[rows]).sum() / max((1 - pa0[rows]).sum(), 1e-9))
+        for d in dets:
+            wm, wx = W[(d, budget)][rows], Wo[(d, budget)][rows]
+            out[f"SEL_res_{d}"] = float(((1 - pim[rows]) * (1 - wm)).sum() / max(((1 - pi0[rows]) * (1 - wx)).sum(), 1e-9))
+            out[f"detect_rate_{d}"] = float(wm.mean())
+            out[f"orig_detect_rate_{d}"] = float(wx.mean())
+        return out
+
+    out = {}
+    for p, mask in prim_mask.items():
+        out[p] = stats(mask)
+    # pair-clustered bootstrap for SEL and residual SEL (all primitives at once)
+    acc = {p: {"SEL": [], **{f"SEL_res_{d}": [] for d in dets}} for p in prim_mask}
+    for idx in pair_bootstrap_indices(pidt, n_boot, seed + 1):
+        sel_rows = np.zeros(len(ti), bool); sel_rows[idx] = True   # membership (weights ignored for clusters drawn >1x)
+        cnt = np.bincount(idx, minlength=len(ti)).astype(float)   # multiplicity weights
+        for p, mask in prim_mask.items():
+            rows = mask & (cnt > 0)
+            if rows.sum() < 10:
+                continue
+            wgt = cnt[rows]
+            a = ((1 - pim[rows]) * wgt).sum(); b = ((1 - pi0[rows]) * wgt).sum()
+            acc[p]["SEL"].append(a / max(b, 1e-9))
+            for d in dets:
+                wm, wx = W[(d, budget)][rows], Wo[(d, budget)][rows]
+                acc[p][f"SEL_res_{d}"].append((((1 - pim[rows]) * (1 - wm)) * wgt).sum()
+                                              / max((((1 - pi0[rows]) * (1 - wx)) * wgt).sum(), 1e-9))
+    for p in prim_mask:
+        for kk, v in acc[p].items():
+            if v:
+                out[p][kk + "_ci95"] = ci(v)
     return out
 
 
-def evaluate_loo(msgs, seed=0, extra=False):
-    """Leave-one-primitive-family-out, reported against a MATCHED baseline.
-
-    Two corrections over the naive version:
-
-    1. PURE families only. At evader budget k>1 most gamed messages carry
-       primitives from more than one family, so withholding family F still
-       leaves the model trained on ~all of F's messages via their partners.
-       We score only messages whose primitive set lies entirely inside F.
-    2. MATCHED evaluation set. The held-out AUC is compared against an
-       in-distribution AUC computed on the SAME rows, so the drop is
-       interpretable. Reporting a global AUC beside a per-family held-out AUC
-       compares different test sets and can make held-out look better than
-       in-distribution, which is a sign the design is broken, not a result.
-    """
+# ===========================================================================
+# Leave-one-family-out under the temporal protocol (k = 1 corpus).
+# ===========================================================================
+def evaluate_loo(msgs, seed=0):
     from sklearn.metrics import roc_auc_score
-    gamed = np.array([m.gamed for m in msgs])
+    F = build_features(msgs)
+    n = len(msgs)
+    train, val, test = temporal_split(n)
+    y = F["y"]
+    gamed = y == 1
+    full_scorer = fit_detectors(F, train, seed)
+    full = full_scorer(F["X"], F["H"], F["R"])
+    ult_absent = np.array([m.ultmt_dbtr_nm is None for m in msgs])
     out = {}
     for fam in ("P1", "P2", "P3"):
-        pure = np.array([m.gamed and all(FAMILY[p] == fam for p in m.primitives)
-                         for m in msgs])
-        any_fam = np.array([any(FAMILY[p] == fam for p in m.primitives)
-                            for m in msgs])
-        n_pure, n_any = int(pure.sum()), int(any_fam.sum())
+        pure = np.array([m.gamed and all(FAMILY[p] == fam for p in m.primitives) for m in msgs])
+        any_fam = np.array([any(FAMILY[p] == fam for p in m.primitives) for m in msgs])
+        keep = test & ((~gamed) | pure)
+        n_pure = int((pure & test).sum())
         if n_pure < 30:
-            out[fam] = {"skipped": f"only {n_pure} pure-family samples "
-                                   f"({n_any} incl. mixed); rerun at k=1",
-                        "n_pure": n_pure, "n_any": n_any}
+            out[fam] = {"skipped": f"only {n_pure} pure-family test rows", "n_pure": n_pure}
             continue
-        keep = (~gamed) | pure              # benign + this family, pure only
-        # held out: learned detectors never see ANY message touching the family
-        held, y = detector_scores(msgs, seed=seed, train_mask=~any_fam,
-                                  extra=extra)
-        # matched baseline: same rows, model trained on everything
-        full, _ = detector_scores(msgs, seed=seed, train_mask=None, extra=extra)
+        tr_red = train & ~any_fam
+        held = fit_detectors(F, tr_red, seed, reuse=full_scorer)(F["X"], F["H"], F["R"])
         yk = y[keep]
-        row = {"n_pure": n_pure, "n_any": n_any,
-               "purity": round(n_pure / max(1, n_any), 3)}
-        for d in held:
-            a_in = float(roc_auc_score(yk, full[d][keep]))
-            a_out = float(roc_auc_score(yk, held[d][keep]))
-            row[d] = a_out
-            row[d + "_matched_in"] = a_in
-            row[d + "_drop"] = round(a_in - a_out, 4)
+        row = {"n_pure": n_pure,
+               "train_P_gamed_given_ultimate_absent": float(y[tr_red & ult_absent].mean()),
+               "train_P_gamed_given_ultimate_present": float(y[tr_red & ~ult_absent].mean()),
+               "benign_share_ultimate_absent": float(ult_absent[(~gamed) & train].mean())}
+        if fam == "P1":
+            for prim in ("P1a", "P1b", "P1c", "P1d"):
+                mk = np.array([m.gamed and m.primitives == (prim,) for m in msgs]) & test
+                if mk.sum() >= 30:
+                    sel = test & ((~gamed) | mk)
+                    row[f"{prim}_heldout_auc_D2"] = float(roc_auc_score(y[sel], held["D2"][sel]))
+                    row[f"{prim}_n"] = int(mk.sum())
+                    row[f"{prim}_ultimate_absent_share"] = float(ult_absent[mk].mean())
+        for d in DETECTORS:
+            row[d] = float(roc_auc_score(yk, held[d][keep]))
+            row[d + "_matched_in"] = float(roc_auc_score(yk, full[d][keep]))
+            row[d + "_drop"] = row[d + "_matched_in"] - row[d]
         out[fam] = row
     return out
 
 
 # ===========================================================================
+# Generator shift: fit on A's training window, freeze on A's validation
+# window, test on B's test window (and B on B as reference).
+# ===========================================================================
+def evaluate_shift(msgs_a, msgs_b, seed=0, budget=0.01):
+    from sklearn.metrics import roc_auc_score, average_precision_score
+    Fa, Fb = build_features(msgs_a), build_features(msgs_b)
+    tra, vala, _ = temporal_split(len(msgs_a)); trb, valb, teb = temporal_split(len(msgs_b))
+    sa = fit_detectors(Fa, tra, seed); sb = fit_detectors(Fb, trb, seed)
+    Sa_on_a = sa(Fa["X"], Fa["H"], Fa["R"]); Sa_on_b = sa(Fb["X"], Fb["H"], Fb["R"]); Sb_on_b = sb(Fb["X"], Fb["H"], Fb["R"])
+    yb = Fb["y"][teb]
+    out = {"n_gamed_test_B": int(yb.sum()), "prevalence_test_B": float(yb.mean()), "detectors": {}}
+    for d in DETECTORS:
+        thr_a, fr_a = frozen_threshold(Sa_on_a[d][vala], budget)
+        thr_b, fr_b = frozen_threshold(Sb_on_b[d][valb], budget)
+        ma = metrics_frozen(alert_weights_frozen(Sa_on_b[d][teb], thr_a, fr_a), yb)
+        mb = metrics_frozen(alert_weights_frozen(Sb_on_b[d][teb], thr_b, fr_b), yb)
+        out["detectors"][d] = {
+            "A_to_B": {"auc": float(roc_auc_score(yb, Sa_on_b[d][teb])), "ap": float(average_precision_score(yb, Sa_on_b[d][teb])),
+                       "recovery@0.01": ma["recovery"], "precision@0.01": ma["precision"], "alert_rate@0.01": ma["alert_rate"]},
+            "B_to_B": {"auc": float(roc_auc_score(yb, Sb_on_b[d][teb])), "ap": float(average_precision_score(yb, Sb_on_b[d][teb])),
+                       "recovery@0.01": mb["recovery"], "precision@0.01": mb["precision"], "alert_rate@0.01": mb["alert_rate"]}}
+    return out
+
+
+# ===========================================================================
+# Artefact audit: do any alerts rest on values benign traffic never produces?
+# ===========================================================================
+def artefact_audit(msgs, budget=0.01, seed=0):
+    F = build_features(msgs)
+    n = len(msgs)
+    train, val, test = temporal_split(n)
+    S = fit_detectors(F, train, seed)(F["X"], F["H"], F["R"])
+    y = F["y"]; benign = y == 0
+    len_rmt = np.array([len(m.rmt_ustrd) for m in msgs]); splits = np.array([m.n_splits for m in msgs])
+    names = np.array([min(len(m.dbtr_nm), len(m.cdtr_nm), len(m.ultmt_dbtr_nm or "X" * 99)) for m in msgs])
+    ben = benign & train
+    out_len = ~np.isin(len_rmt, np.unique(len_rmt[ben]))
+    out_split = splits > splits[ben].max()
+    out_name = names < names[ben].min()
+    art = out_len | out_split | out_name
+    out = {"benign_train_remittance_lengths": int(len(np.unique(len_rmt[ben]))),
+           "benign_train_max_splits": int(splits[ben].max()), "benign_train_min_name_len": int(names[ben].min()),
+           "share_gamed_test_out_of_range": float(art[test & (y == 1)].mean()),
+           "share_benign_test_out_of_range": float(art[test & benign].mean()),
+           "alert_mass_on_out_of_range": {}, "detectors_precision": {}}
+    yt = y[test]
+    for d in DETECTORS:
+        thr, frac = frozen_threshold(S[d][val], budget)
+        w = alert_weights_frozen(S[d][test], thr, frac)
+        out["alert_mass_on_out_of_range"][d] = float((w * art[test]).sum() / max(w.sum(), 1e-9))
+        out["detectors_precision"][d] = float((w * yt).sum() / max(w.sum(), 1e-9))
+    return out
+
+
+# ===========================================================================
+# Invariants of the primitives (checked on every gamed record).
+# ===========================================================================
+def check_invariants(m: Message) -> list:
+    """Return the list of violated invariants for a gamed record."""
+    o = m.orig
+    v = []
+    if o is None:
+        return ["no original retained"]
+    if abs(m.amount - o.amount) > 1e-6: v.append("amount")
+    if m.ccy != o.ccy: v.append("currency")
+    if (m.dbtr_ctry, m.cdtr_ctry) != (o.dbtr_ctry, o.cdtr_ctry): v.append("countries")
+    if m.cdtr_nm != o.cdtr_nm: v.append("creditor name")
+    if m.dbtr_nm != o.dbtr_nm and not ("P1c" in m.primitives and o.listed_party == "debtor"): v.append("debtor name")
+    if m.msg_type != o.msg_type and "P3a" not in m.primitives: v.append("message type")
+    if m.n_splits != o.n_splits and "P3b" not in m.primitives: v.append("split count")
+    if m.purpose != o.purpose and not ({"P2a", "P2c", "P2d"} & set(m.primitives)): v.append("purpose")
+    if m.ctgy_purpose != o.ctgy_purpose and "P2b" not in m.primitives: v.append("category purpose")
+    if m.ultmt_dbtr_nm != o.ultmt_dbtr_nm and not ({"P1a", "P1c", "P1d", "P3c"} & set(m.primitives)): v.append("ultimate party")
+    if "P3b" in m.primitives and abs(m.n_splits * round(m.amount / m.n_splits, 2) - m.amount) > 0.01 * m.n_splits: v.append("children do not sum to amount")
+    return v
+
+
+# ===========================================================================
 def main():
-    ap = argparse.ArgumentParser(description="F7 ISO 20022 gaming benchmark")
+    ap = argparse.ArgumentParser(description="ISO 20022 message-gaming benchmark v3")
     ap.add_argument("--n", type=int, default=50_000)
-    ap.add_argument("--eta", type=float, default=0.15, help="accidental defect rate")
-    ap.add_argument("--rho", type=float, default=0.02, help="illicit fraction")
-    ap.add_argument("--k", type=int, default=2, help="evader budget")
-    ap.add_argument("--lam", type=float, default=0.35, help="evader cost weight")
-    ap.add_argument("--temp", type=float, default=0.06, help="evader temperature")
+    ap.add_argument("--eta", type=float, default=0.15)
+    ap.add_argument("--rho", type=float, default=0.05)
+    ap.add_argument("--k", type=int, default=2)
+    ap.add_argument("--lam", type=float, default=0.18)
+    ap.add_argument("--temp", type=float, default=0.10)
     ap.add_argument("--knowledge", choices=["black", "grey"], default="grey")
-    ap.add_argument("--pi-floor", type=float, default=0.15)
-    ap.add_argument("--target-pi0", type=float, default=None,
-                    help="calibrate the screening abstraction to this pi_0")
-    ap.add_argument("--name-share", type=float, default=0.6,
-                    help="fraction of baseline detection from the name leg; "
-                         "keeps P1 primitives meaningful. Report and sweep it.")
-    ap.add_argument("--boot", type=int, default=1000)
+    ap.add_argument("--pi-floor", type=float, default=0.10)
+    ap.add_argument("--target-pi0", type=float, default=0.45)
+    ap.add_argument("--name-share", type=float, default=0.6)
+    ap.add_argument("--config", choices=list(CONFIGS), default="A")
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--emit-xml", type=int, default=0,
-                    help="write this many messages as ISO 20022 XML")
-    ap.add_argument("--xsd-dir", default=None,
-                    help="dir with pain.001.001.09.xsd / pacs.008.001.08.xsd")
-    ap.add_argument("--loo", action="store_true", help="also run leave-one-out")
-    ap.add_argument("--out", default="results")
+    ap.add_argument("--boot", type=int, default=200)
+    ap.add_argument("--out", default="results/run.json")
     a = ap.parse_args()
-
-    globals()["PI_FLOOR"] = a.pi_floor
-    globals()["TEMP"] = a.temp
-    if a.target_pi0 is not None:
-        calibrate_p_name(a.target_pi0, a.eta, a.seed, a.knowledge,
-                         name_share=a.name_share)
-
-    msgs = generate(a.n, a.eta, a.rho, a.seed, a.k, a.lam, a.knowledge)
-    res = evaluate(msgs, seed=a.seed, boot=a.boot)
-    if a.loo:
-        res["loo"] = evaluate_loo(msgs, seed=a.seed)
-    if a.emit_xml:
-        p = os.path.join(a.out, f"corpus_seed{a.seed}.jsonl")
-        res["xml_written"] = write_corpus(msgs, p, limit=a.emit_xml)
-        res["xml_path"] = p
-    if a.xsd_dir:
-        n, ok, errs = validate_corpus(msgs, a.xsd_dir)
-        res["xsd"] = {"checked": n, "valid": ok, "errors": errs}
-
-    res["config"] = vars(a)
-    res["config"]["solved_P_NAME"] = P_NAME
-    res["config"]["solved_TAU"] = TAU
-    if res["sel"]["_baseline"]["n_unevaded_illicit"] < 200:
-        res["warning"] = ("few un-evaded illicit messages: the SEL_res "
-                          "baseline delta0 is noisy. Raise --n or --rho.")
-        print("[warn]", res["warning"])
-    res["config_hash"] = hashlib.sha256(
-        json.dumps(res["config"], sort_keys=True).encode()).hexdigest()[:12]
-    os.makedirs(a.out, exist_ok=True)
-    path = os.path.join(a.out, f"run_{res['config_hash']}.json")
-    with open(path, "w") as f:
-        json.dump(res, f, indent=2)
-    print(json.dumps(res["detectors"], indent=2))
-    print(f"gamed {res['n_gamed']} / illicit {res['n_illicit']} / n {res['n']}")
-    print("->", path)
+    globals()["PI_FLOOR"] = a.pi_floor; globals()["TEMP"] = a.temp
+    cfg = CONFIGS[a.config]
+    calibrate(a.target_pi0, a.eta, a.seed, a.knowledge, a.name_share, cfg=cfg)
+    msgs = generate(a.n, a.eta, a.rho, a.seed, a.k, a.lam, a.knowledge, cfg=cfg)
+    res = evaluate_run(msgs, seed=a.seed, n_boot=a.boot)
+    res["config"] = {**vars(a), "solved_P_NAME": P_NAME, "solved_TAU": TAU}
+    os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+    json.dump(res, open(a.out, "w"), indent=2)
+    print(json.dumps({d: {k: round(v, 4) for k, v in r.items() if isinstance(v, float)} for d, r in res["detectors"].items()}, indent=1))
 
 
 if __name__ == "__main__":
