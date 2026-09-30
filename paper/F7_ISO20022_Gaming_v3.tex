@@ -42,8 +42,8 @@ economic meaning. A seeded generator gives each debtor--creditor pair latent
 behaviour and emits pain.001 and pacs.008 records in time order with a
 controlled defect rate; a cost-bounded evader applies up to two of eleven
 manipulations. All 2{,}089{,}794 generated and counterfactual
-records across ten runs are schema-valid and every edit passes its stated
-invariants. Evaluation is temporal: the earliest 60\% of a run trains, the
+records across ten runs are schema-valid and every gamed record passes its
+stated invariants. Evaluation is temporal: the earliest 60\% of a run trains, the
 next 20\% freezes alert thresholds, the latest 20\% is scored. Screening-evasion lift (SEL) is a paired
 counterfactual on each manipulated payment. At a frozen 1\% alert threshold,
 where at most 22.4\% of gamed messages can be recovered, the best
@@ -92,7 +92,7 @@ could actually run, with thresholds frozen before the scored period, do
 deliberate changes remain distinguishable from routine error?
 
 The contributions are eleven message-level manipulations with actors,
-costs, and stated invariants, all schema-valid; a generator with pair
+costs, and stated invariants, checked on every gamed record; a generator with pair
 behaviour and time order; a temporal protocol with frozen thresholds and
 pair-clustered uncertainty; paired counterfactual SEL, which needs no
 separate control group; a pre-specified test of what predicts
@@ -118,9 +118,10 @@ classical cost-bounded evasion setting~\cite{bruckner2011,biggio2013}. Noisy
 payment-address parsing in real traffic~\cite{hammami2024} is the
 ordinary-error half of the same overlap. Transaction-purpose
 classification~\cite{busson2023} enriches naturally occurring labels rather
-than detecting strategically chosen ones. No prior benchmark combines
+than detecting strategically chosen ones. The literature reviewed here offers no benchmark that combines
 message-level field operations with a controlled accidental-error floor and
-a temporal, capacity-constrained evaluation.
+a temporal, capacity-constrained evaluation; this is a scoped observation,
+not a claim of exhaustive priority.
 
 \section{Threat Model and Manipulations}
 The adversary can construct or amend a payment instruction but controls
@@ -219,8 +220,11 @@ $\pi_{\mathrm{att}}=1-(1-p_{\mathrm{name}})(1-f)(1-p_{\mathrm{score}})^{n_{\math
 This models perfectly correlated name-leg and floor outcomes across
 children and a separate score-leg draw per child; the fully independent
 extreme, $1-(1-\pi)^{n_{\mathrm{ch}}}$, is reported in the supplement. The
-evader optimises the per-message form. Baseline survival is split
-between the legs by a name share $\sigma$; the main setting $\pi_0=0.45$,
+evader optimises the per-message form. Baseline survival $S=(1-\pi_0)/(1-f)$ is split between the legs by a name
+share $\sigma$: $P_{\mathrm{name}}=(1-S^{\sigma})/q$, where $q$ is the share
+of unevaded illicit probe records whose listed name sits in a screened
+element, and $\tau$ is bisected so that the probe's mean score-leg
+probability equals $1-S^{1-\sigma}$. The main setting $\pi_0=0.45$,
 $\sigma=0.6$ solves to $P_{\mathrm{name}}=0.337$, $\tau=0.782$. Weights
 are illustrative constants, not any institution's rule set.
 
@@ -240,11 +244,13 @@ labels. $D_5$ is a local outlier factor on the message-level features of
 benign training rows~\cite{breunig2000}; it and $D_7$ use no gaming label but
 do assume a trusted benign training stream, which we call gaming-label-free. $D_3$ (isolation forest) and $D_4$
 (rules plus forest) are in the supplement. $D_7$ is the history-only positive
-control, the standardised sum of the six history deviations. No
+control, the sum of the six history deviations standardised with
+training-window means and standard deviations only. No
 hyperparameter is tuned on the benchmark.
 
-Each run has $n=200{,}000$ records. The earliest 60\% trains every learned
-detector. On the next 20\% the score threshold for each alert capacity (1\%
+Each run has $n=200{,}000$ records with $\eta=0.15$, $\rho=0.05$, $k=2$,
+$\lambda=0.18$, $T=0.10$, and $f=0.10$. The earliest 60\% trains every
+learned detector. On the next 20\% the score threshold for each alert capacity (1\%
 and 0.1\%) is frozen, with a label-blind fraction for tied scores. The latest
 20\% is the test window on which every number below is computed. Gamed
 records are 4.5\% of the test window, so no detector can recover
@@ -437,7 +443,7 @@ primitive modifies; a contradiction that no feature reads goes unseen. An
 exploratory grouping by evidence source is in the supplement. What does
 separate the families is the kind of evidence required, as the
 leave-one-family-out result shows: P3 edits are caught by prior pair history
-and by nothing message-level. Of the two directional expectations recorded
+and by no tested message-level detector at a useful level. Of the two directional expectations recorded
 before the rerun, one held: P1 and P3 behave alike for message-level
 detectors when withheld. One did not: P2 is the easiest family for fixed
 rules, not the hardest.
@@ -485,7 +491,7 @@ The generator, harness, result files, and verification scripts are public at
 (MIT) and archived at \url{https://doi.org/10.5281/zenodo.23049366}. Every
 result file records the commit that produced it (\texttt{17bb868dd2b1}). One
 command regenerates every table and figure, and one command validates every
-message against the XSDs and every edit against its invariants.
+message against the XSDs and every gamed record against its invariants.
 \fi
 
 \section*{Acknowledgment}

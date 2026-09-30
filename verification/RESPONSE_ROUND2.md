@@ -102,3 +102,14 @@ identifying information; the named variant cites the repository and DOI.
 | Figure 1 load | Reduced to four series (SEL, residual after D5 and D2, attempt-level) with more height; D1 and D7 residuals remain in the supplement. |
 | Double-blind and AI-disclosure compliance | Anonymous variant carries no identifying strings or links; venue policy on the acknowledgment to be checked at submission. |
 | Domain ratings | Still not performed; questionnaire and blinded rerun procedure released. |
+
+# Addendum: final pre-upload comments (30 September 2026, v3.0.3)
+
+| Comment | Change |
+|---|---|
+| State the main eta, rho, k, lambda, T configuration | Section IV-C now lists eta=0.15, rho=0.05, k=2, lambda=0.18, T=0.10, f=0.10 beside n. |
+| Exact calibration mapping; training-only D7 standardisation | Section IV-B gives P_name=(1-S^sigma)/q with q the probe share of listed names in a screened element and tau bisected on the score leg; Section IV-C states D7 is standardised with training-window statistics only. |
+| Scope "no prior benchmark" | "The literature reviewed here offers no benchmark that combines ...; a scoped observation, not a claim of exhaustive priority." |
+| "by nothing message-level" | "by no tested message-level detector at a useful level". |
+| "every edit" versus per-record invariant check | "every gamed record passes its stated invariants" in the abstract, contributions and artifact statement. |
+| Anonymous PDF and artifact | The `_Anonymous` variants carry no author block, "Anonymous" metadata, and no repository or DOI; an anonymised artifact copy is to be made only if the target venue is double-blind. |
