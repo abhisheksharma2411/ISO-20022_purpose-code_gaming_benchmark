@@ -18,7 +18,7 @@ authors:
 version: 2.0.0
 date-released: 2026-09-29
 license: MIT
-repository-code: "https://github.com/abhisheksharma2411/iso20022-gaming-bench"
+repository-code: "https://github.com/abhisheksharma2411/ISO-20022_purpose-code_gaming_benchmark"
 keywords:
   - ISO 20022
   - payment data quality
