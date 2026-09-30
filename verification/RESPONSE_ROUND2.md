@@ -113,3 +113,12 @@ identifying information; the named variant cites the repository and DOI.
 | "by nothing message-level" | "by no tested message-level detector at a useful level". |
 | "every edit" versus per-record invariant check | "every gamed record passes its stated invariants" in the abstract, contributions and artifact statement. |
 | Anonymous PDF and artifact | The `_Anonymous` variants carry no author block, "Anonymous" metadata, and no repository or DOI; an anonymised artifact copy is to be made only if the target venue is double-blind. |
+
+# Addendum: final clarifications (30 September 2026, v3.0.4)
+
+| Comment | Change |
+|---|---|
+| State D2 and D6 implementations | Section IV-C: scikit-learn HistGradientBoostingClassifier (150 iterations, learning rate 0.1, 31 leaves, defaults otherwise); LogisticRegression (C=1, lbfgs, 1,000 iterations, standardised inputs). |
+| Why rho=5% gives 4.5% gamed | Section IV-C: illicit records with no improving admissible subset, or for which the no-edit option is drawn, stay unedited, are not positives, and remain in the scored population as unevaded illicit records (0.5% of the test window). |
+| "caught by prior pair history" | "separated by prior pair history". |
+| "the best-ranking one recovers the least" | "the highest-mean-AUC detector has the lowest mean recovery". |

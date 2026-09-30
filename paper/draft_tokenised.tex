@@ -238,9 +238,12 @@ History features use only the pair's strictly earlier messages: purpose
 novelty (C5), path novelty, split-count deviation, ultimate-party novelty and
 presence deviation, and amount deviation. No label enters any feature. $D_1$
 is the fixed rule $\mathrm{C1}+0.5\,\mathrm{C2}+\mathrm{C3}+1.5\,\mathrm{C4}$.
-$D_2$ is a gradient-boosted classifier and $D_6$ a logistic regression on
-one-hot codes, corridor, amount, and completeness. Both train on gaming
-labels. $D_5$ is a local outlier factor on the message-level features of
+$D_2$ is a gradient-boosted classifier (scikit-learn
+\texttt{HistGradientBoostingClassifier}, 150 iterations, learning rate 0.1,
+31 leaves, other settings default) and $D_6$ an $\ell_2$ logistic regression
+(\texttt{LogisticRegression}, $C=1$, lbfgs, 1,000 iterations, standardised
+inputs) on one-hot codes, corridor, amount, and completeness. Both train on
+gaming labels. $D_5$ is a local outlier factor on the message-level features of
 benign training rows~\cite{breunig2000}; it and $D_7$ use no gaming label but
 do assume a trusted benign training stream, which we call gaming-label-free. $D_3$ (isolation forest) and $D_4$
 (rules plus forest) are in the supplement. $D_7$ is the history-only positive
@@ -252,9 +255,12 @@ Each run has $n=@@N@@$ records with $\eta=0.15$, $\rho=0.05$, $k=2$,
 $\lambda=0.18$, $T=0.10$, and $f=0.10$. The earliest 60\% trains every
 learned detector. On the next 20\% the score threshold for each alert capacity (1\%
 and 0.1\%) is frozen, with a label-blind fraction for tied scores. The latest
-20\% is the test window on which every number below is computed. Gamed
-records are @@PREV_PCT@@\% of the test window, so no detector can recover
-more than @@CEIL1_PCT@@\% at 1\% capacity. We report AUC, average precision
+20\% is the test window on which every number below is computed. An illicit record for which no admissible subset lowers the objective, or
+for which the softmax draws the no-edit option, stays unedited; it is not in
+the positive class and remains in the scored population as an unevaded
+illicit record (@@UNEVADED_TEST_PCT@@\% of the test window). Gamed records
+are therefore @@PREV_PCT@@\% of the test window rather than $\rho$, so no
+detector can recover more than @@CEIL1_PCT@@\% at 1\% capacity. We report AUC, average precision
 (AP), and recovery and precision at the frozen threshold, as means over ten
 seeds with between-seed standard deviations, and pair-clustered bootstrap
 intervals within each test window. SEL is paired. Each gamed test record
@@ -442,7 +448,7 @@ detection depends on whether the detector observes the evidence source the
 primitive modifies; a contradiction that no feature reads goes unseen. An
 exploratory grouping by evidence source is in the supplement. What does
 separate the families is the kind of evidence required, as the
-leave-one-family-out result shows: P3 edits are caught by prior pair history
+leave-one-family-out result shows: P3 edits are separated by prior pair history
 and by no tested message-level detector at a useful level. Of the two directional expectations recorded
 before the rerun, one held: P1 and P3 behave alike for message-level
 detectors when withheld. One did not: P2 is the easiest family for fixed
@@ -453,8 +459,7 @@ Three results survive every protocol correction. Ranking quality does not
 translate into recovery at a frozen threshold: gaming-label-free detectors with AUC
 between @@D7_AUC@@ and @@D5_AUC@@ recover between @@D5_REC1_PCT@@\% and
 @@D1_REC1_PCT@@\% of gamed messages when 1\% of traffic may be alerted,
-against a ceiling of @@CEIL1_PCT@@\%. The best-ranking one recovers the
-least. A supervised model that recovers @@D2_REC1_PCT@@\% in-distribution
+against a ceiling of @@CEIL1_PCT@@\%. The highest-mean-AUC detector has the lowest mean recovery. A supervised model that recovers @@D2_REC1_PCT@@\% in-distribution
 falls to chance on a family it has not seen, and the reason can be read off
 the training distribution: the ordinary-error floor makes the signature of
 the unseen edit look benign. The primitives that reroute, decompose, or

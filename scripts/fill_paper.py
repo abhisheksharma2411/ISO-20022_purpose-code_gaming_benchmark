@@ -26,6 +26,7 @@ tok["PREV_PCT"] = pct1(S["prevalence_test"]); c1, c01 = S["tpr_ceiling@0.01"], S
 tok["CEIL1"], tok["CEIL01"], tok["CEIL1_PCT"] = f3(c1), f3(c01), pct1(c1)
 tok["PNAME"], tok["TAU"] = f3(S["config"]["solved_P_NAME"]), f3(S["config"]["solved_TAU"])
 tok["ROUTE_PCT"] = pct0(B.CONFIG_A.route_choice_rate)
+tok["UNEVADED_TEST_PCT"] = f"{100*np.mean([i-g for i,g in zip(S['n_illicit_test'],S['n_gamed_test'])])/(n//5):.1f}"
 tok["NGAMED_TEST_RANGE"] = f"{min(S['n_gamed_test']):,}--{max(S['n_gamed_test']):,}".replace(",", "{,}")
 for d, e in D.items():
     tok[f"{d}_AUC"], tok[f"{d}_AUCSD"], tok[f"{d}_AP"] = f3(e["auc"]), f3(e["auc_sd"]), f3(e["ap"])

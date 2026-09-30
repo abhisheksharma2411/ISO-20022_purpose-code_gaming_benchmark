@@ -8,6 +8,7 @@
  "PNAME": "0.337",
  "TAU": "0.782",
  "ROUTE_PCT": "30",
+ "UNEVADED_TEST_PCT": "0.5",
  "NGAMED_TEST_RANGE": "1{,}727--1{,}835",
  "D0_AUC": "0.497",
  "D0_AUCSD": "0.002",
