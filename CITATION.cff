@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this benchmark or its results, please cite it as below."
+title: "ISO 20022 message-gaming benchmark: generator, evader, screening abstraction, detectors and evaluation harness for 'Gaming ISO 20022 Payment Messages'"
+abstract: >-
+  A seeded synthetic benchmark of eleven message-level manipulations of
+  ISO 20022 pain.001 and pacs.008 records (misfielding, purpose-code
+  substitution, message-path changes) against a transparent screening
+  abstraction with a controlled ordinary-error floor, with cross-fitted
+  detectors, exact alert-capacity metrics, screening-evasion lift, and a
+  verification pipeline that traces every number in the paper to the result
+  files.
+type: software
+authors:
+  - family-names: Sharma
+    given-names: Abhishek
+    email: abhicse24@gmail.com
+    orcid: "https://orcid.org/0009-0007-1103-2103"
+version: 2.0.0
+date-released: 2026-09-29
+license: MIT
+repository-code: "https://github.com/abhisheksharma2411/iso20022-gaming-bench"
+keywords:
+  - ISO 20022
+  - payment data quality
+  - purpose codes
+  - sanctions screening
+  - anti-money laundering
+  - adversarial evaluation
+  - synthetic benchmark
