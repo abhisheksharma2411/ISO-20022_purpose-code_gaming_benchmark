@@ -35,29 +35,28 @@ abhishek.sharma@ieee.org}}
 \maketitle
 \begin{abstract}
 ISO~20022 gives payment controls structured data, but message creators still
-decide where names, addresses, and purpose information appear. We study
+decide where names, addresses, and purpose codes appear. We study
 \emph{message gaming}: edits to purpose codes, party fields, or the message
 path that lower a modelled alert probability while preserving the payment's
 economic meaning. A seeded generator gives each debtor--creditor pair latent
 behaviour and emits pain.001 and pacs.008 records in time order with a
-controlled rate of ordinary defects; a cost-bounded evader applies up to two
-of eleven manipulations. All @@XSDALL_CHECKED@@ generated and counterfactual
+controlled defect rate; a cost-bounded evader applies up to two of eleven
+manipulations. All @@XSDALL_CHECKED@@ generated and counterfactual
 records across ten runs are schema-valid and every edit passes its stated
 invariants. Evaluation is temporal: the earliest 60\% of a run trains, the
-next 20\% freezes alert thresholds, the latest 20\% is scored, with
-pair-clustered intervals. Screening-evasion lift (SEL) is a paired
+next 20\% freezes alert thresholds, the latest 20\% is scored. Screening-evasion lift (SEL) is a paired
 counterfactual on each manipulated payment. At a frozen 1\% alert threshold,
 where at most @@CEIL1_PCT@@\% of gamed messages can be recovered, the best
 supervised model recovers @@D2_REC1_PCT@@\% and falls to chance on a withheld
-misfielding family; the highest-mean-AUC label-free detector recovers
-@@D5_REC1_PCT@@\%. A pre-specified confirmatory test finds no conclusive
+misfielding family; the highest-mean-AUC gaming-label-free detector
+recovers @@D5_REC1_PCT@@\%. A pre-specified confirmatory test finds no conclusive
 evidence that either the P1/P2/P3 family or an internal-contradiction label
 predicts primitive-level recovery. What does separate the families is the
 evidence required: on withheld path and structure edits no message-level
 detector exceeds AUC @@P3_LF_MAX@@, while a history-only control reaches
 @@P3_D7@@. Splitting a payment raises per-message lift to @@P3B_SEL@@ but
-lowers attempt-level lift below 1. Results are synthetic and relative to a
-published screening abstraction.
+lowers attempt-level lift below 1. Results are synthetic and relative to
+a published screening abstraction.
 \end{abstract}
 \begin{IEEEkeywords}
 ISO~20022, payment data quality, purpose codes, sanctions screening,
@@ -238,7 +237,8 @@ is the fixed rule $\mathrm{C1}+0.5\,\mathrm{C2}+\mathrm{C3}+1.5\,\mathrm{C4}$.
 $D_2$ is a gradient-boosted classifier and $D_6$ a logistic regression on
 one-hot codes, corridor, amount, and completeness. Both train on gaming
 labels. $D_5$ is a local outlier factor on the message-level features of
-benign training rows~\cite{breunig2000}. $D_3$ (isolation forest) and $D_4$
+benign training rows~\cite{breunig2000}; it and $D_7$ use no gaming label but
+do assume a trusted benign training stream, which we call gaming-label-free. $D_3$ (isolation forest) and $D_4$
 (rules plus forest) are in the supplement. $D_7$ is the history-only positive
 control, the standardised sum of the six history deviations. No
 hyperparameter is tuned on the benchmark.
@@ -292,9 +292,9 @@ threshold frozen before the scored period. Gamed records are @@PREV_PCT@@\% of
 the test window, so 1\% capacity can recover at most @@CEIL1_PCT@@\%. The
 fixed rules $D_1$ recover @@D1_REC1_PCT@@\% at precision @@D1_PREC1@@: one
 alert in two is a gamed message. The local outlier factor $D_5$ has the best
-label-free AUC (@@D5_AUC@@ against @@D1_AUC@@ for $D_1$) and the second-best
-AP, yet the lowest label-free recovery, @@D5_REC1_PCT@@\%; the history-only
-control $D_7$ recovers @@D7_REC1_PCT@@\%. Among label-free detectors neither
+gaming-label-free AUC (@@D5_AUC@@ against @@D1_AUC@@ for $D_1$) and the second-best
+AP, yet the lowest gaming-label-free recovery, @@D5_REC1_PCT@@\%; the history-only
+control $D_7$ recovers @@D7_REC1_PCT@@\%. Among gaming-label-free detectors neither
 AUC nor AP orders recovery at the frozen threshold. The supervised $D_2$
 reaches AUC @@D2_AUC@@ and recovers @@D2_REC1_PCT@@\%
 (@@D2_CAP_SHARE_PCT@@\% of the ceiling, precision @@D2_PREC1@@); logistic
@@ -309,7 +309,7 @@ top-1\% ranking metric differs from frozen-threshold recovery by at most
 \begin{table}[!t]
 \caption{Left: leave-one-family-out AUC on pure-family test records ($k=1$,
 ten seeds; in $\rightarrow$ out for the retrained supervised models,
-single value for label-free ones). Right: generator shift, detectors fitted
+single value for gaming-label-free ones). Right: generator shift, detectors fitted
 and thresholds frozen on configuration A, scored on B's test window (three
 seeds); recovery and alert rate are under A's frozen threshold, not at a 1\%
 alert rate on B; B$\rightarrow$B in parentheses.}
@@ -332,7 +332,7 @@ $D_6$ & @@P1_D6IN@@$\rightarrow$@@P1_D6OUT@@ & @@P2_D6IN@@$\rightarrow$@@P2_D6OU
 Table~\ref{tab:loo} (left) retrains the supervised models without one
 family and scores pure-family test records. With P1 withheld, $D_2$ falls from
 @@P1_D2IN@@ to @@P1_D2OUT@@ (between-seed s.d.\ @@P1_D2OUT_SD@@), and no
-label-free detector exceeds @@P1_LF_MAX@@ on P1, whose records are dominated
+gaming-label-free detector exceeds @@P1_LF_MAX@@ on P1, whose records are dominated
 by name truncation. The inversion behind the low supervised score is
 systematic. In the reduced training window an absent ultimate debtor is more
 common among benign records (@@MECH_BEN_ABS_PCT@@\%) than among the remaining
@@ -341,7 +341,7 @@ gamed ones, and the gamed rate given absence is @@MECH_P_ABS_PCT@@\% against
 ultimate debtor therefore score @@MECH_P1A_AUC@@ (P1a) and @@MECH_P1D_AUC@@
 (P1d) against benign traffic, while truncation, which leaves it in place,
 scores @@MECH_P1C_AUC@@. With P2 withheld the supervised drop is
-@@P2_D2IN@@$\rightarrow$@@P2_D2OUT@@ while the label-free $D_1$ and $D_5$
+@@P2_D2IN@@$\rightarrow$@@P2_D2OUT@@ while the gaming-label-free $D_1$ and $D_5$
 stay at @@P2_D1@@ and @@P2_D5@@. P3 is the pre-specified contrast. No
 message-level detector exceeds AUC @@P3_LF_MAX@@ (@@P3_D1@@ to @@P3_D5@@; the
 withheld $D_2$ @@P3_D2OUT@@), and the history-only $D_7$ reaches @@P3_D7@@.
@@ -366,18 +366,16 @@ fixed rules overtake the supervised model, at @@PREV_0_005_D2_APD@@ and
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.98\columnwidth,height=5.4cm,
-  ybar=0.4pt,bar width=2.4pt,ylabel={Lift},
+  width=0.98\columnwidth,height=6.0cm,
+  ybar=0.5pt,bar width=3.2pt,ylabel={Lift},
   symbolic x coords={P1a,P1b,P1c,P1d,P2a,P2b,P2c,P2d,P3a,P3b,P3c},
   xtick=data,ymin=@@SEL_YMIN@@,ymax=@@SEL_YMAX@@,grid=both,grid style={black!12},
-  legend style={at={(0.02,0.97)},anchor=north west,font=\tiny,draw=black!30,legend columns=5},
+  legend style={at={(0.02,0.97)},anchor=north west,font=\tiny,draw=black!30,legend columns=4},
   label style={font=\scriptsize},tick label style={font=\tiny},
   extra y ticks={1.0},extra y tick labels={},extra y tick style={grid=major,grid style={black!60,dashed}}
 ]
 \addplot[fill=black!12] coordinates {@@SEL_COORDS@@};
 \addlegendentry{SEL}
-\addplot[fill=black!35] coordinates {@@SELRES_D1_COORDS@@};
-\addlegendentry{res.\ $D_1$}
 \addplot[fill=black!60] coordinates {@@SELRES_D5_COORDS@@};
 \addlegendentry{res.\ $D_5$}
 \addplot[fill=black!85] coordinates {@@SELRES_D2_COORDS@@};
@@ -387,8 +385,9 @@ fixed rules overtake the supervised model, at @@PREV_0_005_D2_APD@@ and
 \end{axis}
 \end{tikzpicture}
 \caption{Paired SEL per primitive on the test window (ten seeds): modelled
-lift, residual lift after each detector at the frozen 1\% threshold, and
-attempt-level lift when every child transaction is screened.}
+lift, residual lift after $D_5$ and $D_2$ at the frozen 1\% threshold, and
+attempt-level lift when every child transaction is screened; residual lift
+after $D_1$ and $D_7$ is in the supplement.}
 \label{fig:sel}
 \end{figure}
 Fig.~\ref{fig:sel} gives paired SEL per primitive. Manipulation raises
@@ -421,7 +420,7 @@ label explains $R^2=@@CT_D2_R2C@@$ of the variance in per-primitive recovery
 at the frozen threshold (exact permutation $p=@@CT_D2_PC@@$ over all 330
 relabellings; contradiction-bearing primitives @@CT_D2_M1@@\% against
 @@CT_D2_M0@@\% for coherent ones). The family explains $R^2=@@CT_D2_R2F@@$
-($p=@@CT_D2_PF@@$ over 11,550). For the label-free $D_5$ the figures are
+($p=@@CT_D2_PF@@$ over 11,550). For the gaming-label-free $D_5$ the figures are
 @@CT_D5_R2C@@ ($p=@@CT_D5_PC@@$) and @@CT_D5_R2F@@ ($p=@@CT_D5_PF@@$). Cost
 correlates negatively with recovery ($\rho=@@CT_D2_RHOCOST@@$,
 $p=@@CT_D2_PCOST@@$); frequency does not. In leave-one-primitive-out prediction the
@@ -445,7 +444,7 @@ rules, not the hardest.
 
 \section{Discussion, Limitations, and Conclusion}
 Three results survive every protocol correction. Ranking quality does not
-translate into recovery at a frozen threshold: label-free detectors with AUC
+translate into recovery at a frozen threshold: gaming-label-free detectors with AUC
 between @@D7_AUC@@ and @@D5_AUC@@ recover between @@D5_REC1_PCT@@\% and
 @@D1_REC1_PCT@@\% of gamed messages when 1\% of traffic may be alerted,
 against a ceiling of @@CEIL1_PCT@@\%. The best-ranking one recovers the
@@ -453,8 +452,8 @@ least. A supervised model that recovers @@D2_REC1_PCT@@\% in-distribution
 falls to chance on a family it has not seen, and the reason can be read off
 the training distribution: the ordinary-error floor makes the signature of
 the unseen edit look benign. The primitives that reroute, decompose, or
-re-chain a payment are unseen by message-level checks and visible to prior
-pair history. The control that addresses them is longitudinal, not a better
+re-chain a payment are not usefully separated by the tested message-level
+checks and are visible to prior pair history. The control that addresses them is longitudinal, not a better
 validator. The claim drawn from the earlier
 evaluation, that an internal contradiction predicts detectability, did not
 survive its confirmatory test; the case analysis suggests that what matters

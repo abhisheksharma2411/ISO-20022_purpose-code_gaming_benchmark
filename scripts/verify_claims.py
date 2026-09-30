@@ -34,8 +34,12 @@ for p in B.PRIMITIVES:
     rows = [m["sel"][p] for m in mains if "SEL" in m["sel"].get(p, {})]
     if not rows: continue
     raw = float(np.mean([r["SEL"] for r in rows])); check(f"SEL {p}", raw, S["sel"][p]["SEL"]); in_text(f"SEL {p} figure", f"({p},{raw:.3f})")
-    for d in ("D1", "D2", "D5"):
-        raw = float(np.mean([r[f"SEL_res_{d}"] for r in rows])); check(f"SEL_res {d} {p}", raw, S["sel"][p][f"SEL_res_{d}"]); in_text(f"SEL_res {d} {p} figure", f"({p},{raw:.3f})")
+    for d in ("D1", "D2", "D5", "D7"):
+        raw = float(np.mean([r[f"SEL_res_{d}"] for r in rows])); check(f"SEL_res {d} {p}", raw, S["sel"][p][f"SEL_res_{d}"])
+        if d in ("D2", "D5"):
+            in_text(f"SEL_res {d} {p} figure", f"({p},{raw:.3f})")
+        else:
+            in_text(f"SEL_res {d} {p} supplement", f"{raw:.2f}")
 commit = mains[0]["config"]["git_commit"]; print("git commit:", commit)
 if "dirty" in commit or commit == "unversioned": fails.append("provenance")
 in_text("commit in text", commit[:12])

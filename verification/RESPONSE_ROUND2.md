@@ -91,3 +91,14 @@ identifying information; the named variant cites the repository and DOI.
 | Figure 1 small | Enlarged; page 5 still holds only references. |
 | Domain validation | Not performed (requires raters); procedure unchanged. |
 | Double-blind hygiene | The anonymous variant (`_Anonymous`) has no author block, "Anonymous" PDF metadata, and cites neither repository nor DOI; the reviewer read the named variant. Artifact links verified from a logged-out client (repository 200, DOI resolves, release page 200). |
+
+# Addendum: fourth-round comments (30 September 2026, v3.0.2)
+
+| Comment | Change |
+|---|---|
+| "label-free" overstates D5/D7 | "gaming-label-free" throughout, defined once in Section IV-C as using no gaming label while assuming a trusted benign training stream. |
+| "unseen by message-level checks" | "not usefully separated by the tested message-level checks". |
+| Abstract near 250 words | 235 words. |
+| Figure 1 load | Reduced to four series (SEL, residual after D5 and D2, attempt-level) with more height; D1 and D7 residuals remain in the supplement. |
+| Double-blind and AI-disclosure compliance | Anonymous variant carries no identifying strings or links; venue policy on the acknowledgment to be checked at submission. |
+| Domain ratings | Still not performed; questionnaire and blinded rerun procedure released. |
