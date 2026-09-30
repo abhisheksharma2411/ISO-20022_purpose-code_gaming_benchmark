@@ -1,8 +1,8 @@
 # Gaming ISO 20022 Payment Messages: An Adversarial Data-Quality Benchmark for Purpose Codes, Party Fields, and Message Paths
 
 Benchmark, harness, results and manuscript for the paper. Public repository: <https://github.com/abhisheksharma2411/ISO-20022_purpose-code_gaming_benchmark>. Archived at Zenodo, concept DOI [10.5281/zenodo.23049366](https://doi.org/10.5281/zenodo.23049366). Licence: MIT. This is the
-post-review revision of 29 September 2026 of the manuscript submitted to
-ICSISCET 2026 under the title "Purpose-Code Gaming in ISO 20022 Payments: An
+post-review revision of 29 September 2026 of the manuscript that was reviewed
+at ICSISCET 2026 (not resubmitted there) under the title "Purpose-Code Gaming in ISO 20022 Payments: An
 Adversarial Data-Quality Benchmark" (kept verbatim in `paper/as_reviewed/`).
 
 ## Layout
