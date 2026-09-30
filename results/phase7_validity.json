@@ -1,0 +1,70 @@
+{
+ "xsd": {
+  "checked": 56241,
+  "valid": 56241,
+  "by_primitive": {
+   "P1a": {
+    "checked": 823,
+    "valid": 823
+   },
+   "P1b": {
+    "checked": 790,
+    "valid": 790
+   },
+   "P1c": {
+    "checked": 4619,
+    "valid": 4619
+   },
+   "P1d": {
+    "checked": 965,
+    "valid": 965
+   },
+   "P2a": {
+    "checked": 2937,
+    "valid": 2937
+   },
+   "P2b": {
+    "checked": 1250,
+    "valid": 1250
+   },
+   "P2c": {
+    "checked": 675,
+    "valid": 675
+   },
+   "P2d": {
+    "checked": 2762,
+    "valid": 2762
+   },
+   "P3a": {
+    "checked": 209,
+    "valid": 209
+   },
+   "P3b": {
+    "checked": 420,
+    "valid": 420
+   },
+   "P3c": {
+    "checked": 841,
+    "valid": 841
+   },
+   "benign": {
+    "checked": 37970,
+    "valid": 37970
+   },
+   "unevaded": {
+    "checked": 213,
+    "valid": 213
+   },
+   "original": {
+    "checked": 9029,
+    "valid": 9029
+   }
+  },
+  "first_errors": []
+ },
+ "invariants": {
+  "gamed_checked": 9029,
+  "violations_total": 0,
+  "by_kind": {}
+ }
+}

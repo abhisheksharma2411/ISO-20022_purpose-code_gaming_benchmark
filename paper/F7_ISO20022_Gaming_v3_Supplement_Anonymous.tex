@@ -1,0 +1,260 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{amsmath,amssymb,booktabs,tabularx,microtype}
+\PassOptionsToPackage{hyphens}{url}\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\newif\ifanonymous
+\anonymoustrue
+\begin{document}
+\title{Supplement: Gaming ISO~20022 Payment Messages}
+\ifanonymous
+\author{\IEEEauthorblockN{Author names withheld for double-blind review}}
+\else
+\author{\IEEEauthorblockN{Abhishek Sharma}\IEEEauthorblockA{abhishek.sharma@ieee.org}}
+\fi
+\maketitle
+\begin{abstract}
+This supplement carries the material the five-page paper refers to: generator
+distributions for configurations A and B, screening-abstraction constants and
+the calibration grid, feature and detector definitions with hyperparameters,
+the complete test-window table for all eight detectors, per-primitive
+counts and paired SEL, the full pre-registered contradiction test, the
+defect-rate sweep, ablations, prevalence sensitivity, the generator shift for
+all detectors, XSD validation by primitive, the artefact audit, the
+leave-one-family-out mechanism, the release statement, and the domain-rater
+questionnaire. Every number is filled from \texttt{results/summary.json} at
+commit \texttt{17bb868dd2b1}.
+\end{abstract}
+
+\section{Generator}
+\begin{table}[h]\caption{Generator configurations. B is used only as a test distribution in the shift experiment.}\label{tab:gen}\centering\scriptsize
+\begin{tabularx}{\columnwidth}{@{}Xcc@{}}\toprule
+Parameter & A (main) & B (shift) \\\midrule
+pairs\_per & 20 & 30 \\
+pair\_concentration & 1.0 & 0.5 \\
+profile\_alpha & 20.0 & 8.0 \\
+profile\_perturb & 0.0 & 0.2 \\
+industry\_weights & (1, 1, 1, 1, 1, 1) & (2, 1, 1, 2, 1, 1) \\
+corridor\_weights & (1, 1, 1, 1, 1) & (1, 2, 2, 1, 1) \\
+path\_pref\_beta & (2.0, 2.0) & (1.5, 3.0) \\
+batch\_rate & 0.3 & 0.45 \\
+batch\_size\_range & (2, 49) & (2, 80) \\
+batch\_tail & 0.1 & 0.2 \\
+ultimate\_beta & (3.0, 1.0) & (2.0, 1.5) \\
+ult\_names & (1, 3) & (1, 5) \\
+amount\_logmean & 10.2 & 10.6 \\
+amount\_pair\_sd & 0.5 & 0.7 \\
+amount\_msg\_sd & 1.2 & 1.5 \\
+defect\_mix & (0.35, 0.3, 0.2, 0.15) & (0.25, 0.35, 0.25, 0.15) \\
+rmt\_words\_max & 6 & 10 \\
+rmt\_second\_ref & 0.3 & 0.5 \\
+name\_len & (4, 17) & (3, 24) \\
+route\_choice\_rate & 0.3 & 0.5 \\
+listed\_ultimate\_share & 0.5 & 0.6 \\
+\bottomrule\end{tabularx}\end{table}
+Each pair draws: creditor industry (weights above) with purpose profile
+$\mathrm{Dirichlet}(\alpha\,p_{\mathrm{industry}})$, optionally mixed with the
+uniform distribution; a corridor (weights above); preferred path
+$P(\text{pain.001})\sim\mathrm{Beta}$; batching probability
+$\text{rate}\times 2\,\mathrm{Beta}(2,2)$ and a log-uniform typical file size
+in the stated range (a share of batched files instead draws 50--200); ultimate
+presence $\sim\mathrm{Beta}$ with the stated number of ultimate names; amount
+log-mean $\sim N(\mu,\sigma_{\mathrm{pair}})$ with per-message log-s.d.
+$\sigma_{\mathrm{msg}}$; fixed debtor and creditor names, town, and street.
+Volume weights are $\mathrm{Dirichlet}(c\,\mathbf{1})$ over pairs. Per message:
+category purpose uniform over five codes; remittance text is an invoice
+reference, 0 to $w_{\max}$ vocabulary words, and a second reference with the
+stated probability; names are random letters of the stated length range.
+Industry profiles: manufacturing GDDS .45, SUPP .30, TRAD .15, SERV .05, OTHR
+.05; logistics SERV .40, SUPP .30, TRAD .20, GDDS .05, OTHR .05; retail GDDS
+.55, SUPP .25, SERV .10, SALA .05, OTHR .05; services SERV .60, SUPP .15, SALA
+.15, OTHR .10; NGO CHAR .65, SERV .15, SALA .10, OTHR .10; finance INTC .50,
+SERV .25, SUPP .15, OTHR .10. Main-run primitive counts (mean per run of
+200{,}000 records, and in the test window): P1a 777 (158); P1b 805 (159); P1c 4560 (906); P1d 950 (195); P2a 2989 (593); P2b 1210 (243); P2c 648 (130); P2d 2781 (541); P3a 199 (41); P3b 401 (82); P3c 896 (180).
+
+\section{Screening abstraction and calibration}
+Purpose weights $w_p$: GDDS .10, SUPP .12, TRAD .45, SALA .08, CHAR .38, INTC
+.30, SERV .18, OTHR .35, absent .32. Corridor weights $w_c$: GB--US .05, DE--AE
+.35, SG--IN .20, US--MX .25, FR--TR .40. Calibration: with
+$S=(1-\pi_0)/(1-f)$ the name-leg target is $1-S^{\sigma}$ and the score-leg
+target $1-S^{1-\sigma}$; $P_{\mathrm{name}}$ is set so that the mean name-leg
+probability over an unevaded illicit probe of 4,000 records hits its target
+(the listed name is in a screened element for only a share of records because
+the interbank leg does not read ultimate parties), and $\tau$ is bisected on
+the score leg. Table~\ref{tab:grid} gives the $3\times3$ grid.
+\begin{table*}[t]\caption{Calibration grid (seed 7, 100,000 records): solved parameters, test AUC, paired SEL range over primitives.}\label{tab:grid}\centering\scriptsize
+\begin{tabular}{@{}llcccccc@{}}\toprule
+$\pi_0$ & $\sigma$ & $P_{\mathrm{name}}$ & $\tau$ & $D_1$ & $D_2$ & $D_5$ & SEL min--max \\\midrule
+0.3 & 0.4 & 0.126 & 0.828 & 0.780 & 0.919 & 0.785 & 1.15--1.36 \\
+0.3 & 0.6 & 0.185 & 0.894 & 0.780 & 0.866 & 0.784 & 1.14--1.29 \\
+0.3 & 0.8 & 0.240 & 0.996 & 0.759 & 0.826 & 0.735 & 1.17--1.31 \\
+0.45 & 0.4 & 0.236 & 0.708 & 0.784 & 0.906 & 0.805 & 1.25--1.47 \\
+0.45 & 0.6 & 0.337 & 0.782 & 0.774 & 0.877 & 0.771 & 1.26--1.62 \\
+0.45 & 0.8 & 0.429 & 0.896 & 0.765 & 0.840 & 0.741 & 1.36--1.78 \\
+0.6 & 0.4 & 0.365 & 0.608 & 0.785 & 0.921 & 0.806 & 1.43--1.86 \\
+0.6 & 0.6 & 0.508 & 0.690 & 0.767 & 0.884 & 0.773 & 1.38--2.25 \\
+0.6 & 0.8 & 0.629 & 0.814 & 0.778 & 0.863 & 0.754 & 1.59--2.85 \\
+\bottomrule\end{tabular}\end{table*}
+
+\section{Features and detectors}
+Message-level vector (11): C1--C4, C5 (purpose novelty against prior pair
+history), purpose absent, remittance length, address-line count, child
+count, ultimate absent, any party name of at most five characters. History
+vector (6 beyond C5): path novelty (share of prior messages on the other
+path), split deviation ($|\log n_{\mathrm{ch}}-\text{mean}|/(\text{s.d.}+0.5)$
+over prior files, 0 with fewer than three), ultimate-name novelty,
+ultimate-presence deviation, amount deviation (same form on $\log(1+a)$),
+purpose never seen before (with at least three prior messages). Raw vector
+(26): one-hot purpose (9 incl. absent), category (6), corridor (6),
+$\log(1+a)$, child count, ultimate absent, town absent, remittance length.
+$D_0=\mathrm{C1}+\mathbb{1}[\mathrm{C2}>1]$; $D_1$ as in the paper; $D_2$
+scikit-learn \texttt{HistGradientBoostingClassifier}, 150 iterations, other
+settings default; $D_3$ \texttt{IsolationForest}, 200 trees, on benign
+training rows; $D_4=z(D_1)+z(D_3)$ with training-window statistics; $D_5$
+\texttt{LocalOutlierFactor}, 20 neighbours, novelty mode, standardised benign
+training rows; $D_6$ $\ell_2$ logistic regression on the standardised raw
+vector; $D_7$ sum of the six history deviations standardised on the training
+window. No class weighting, no tuning, no validation-set selection other
+than the alert threshold.
+
+\section{Complete test-window results}
+\begin{table*}[t]\caption{All eight detectors, mean $\pm$ between-seed s.d. over ten seeds; frozen-threshold recovery and precision at 1\%, realised alert rate, exact top-1\% recovery (analysis metric), recovery at 0.1\%; widest pair-clustered 95\% half-interval over seeds for AUC and recovery.}\label{tab:full}\centering\scriptsize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lccccccccc@{}}\toprule
+Det. & AUC & AP & Rec.@1\% & Prec.@1\% & Alert rate & Top-1\% rec. & Rec.@0.1\% & AUC hw & Rec.\ hw \\\midrule
+$D_0$ & 0.497$\pm$0.002 & 0.044 & 0.009$\pm$0.001 & 0.039 & 0.010 & 0.009 & 0.001 & 0.005 & 0.002 \\
+$D_1$ & 0.771$\pm$0.004 & 0.321 & 0.112$\pm$0.005 & 0.499 & 0.010 & 0.112 & 0.022 & 0.013 & 0.015 \\
+$D_2$ & 0.886$\pm$0.008 & 0.498 & 0.180$\pm$0.014 & 0.818 & 0.010 & 0.182 & 0.021 & 0.011 & 0.020 \\
+$D_3$ & 0.682$\pm$0.009 & 0.079 & 0.022$\pm$0.004 & 0.103 & 0.010 & 0.023 & 0.003 & 0.013 & 0.009 \\
+$D_4$ & 0.771$\pm$0.006 & 0.163 & 0.062$\pm$0.007 & 0.276 & 0.010 & 0.062 & 0.018 & 0.012 & 0.012 \\
+$D_5$ & 0.775$\pm$0.005 & 0.249 & 0.033$\pm$0.005 & 0.136 & 0.011 & 0.032 & 0.012 & 0.015 & 0.009 \\
+$D_6$ & 0.862$\pm$0.009 & 0.436 & 0.155$\pm$0.013 & 0.712 & 0.010 & 0.159 & 0.020 & 0.011 & 0.018 \\
+$D_7$ & 0.717$\pm$0.006 & 0.123 & 0.035$\pm$0.004 & 0.205 & 0.008 & 0.046 & 0.003 & 0.015 & 0.009 \\
+\bottomrule\end{tabular}\end{table*}
+
+\section{Per-primitive paired SEL}
+\begin{table*}[t]\caption{Per primitive on the test window (ten seeds): gamed test records carrying the primitive, paired SEL, attempt-level SEL, residual SEL after $D_1$, $D_2$, $D_5$, $D_7$ at the frozen 1\% threshold, and the share alerted by each.}\label{tab:prims}\centering\scriptsize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lcccccccccccc@{}}\toprule
+ & $n$ & SEL & att. & res $D_1$ & res $D_2$ & res $D_5$ & res $D_7$ & hit $D_1$ & hit $D_2$ & hit $D_5$ & hit $D_7$ & hit orig $D_2$ \\\midrule
+P1a & 158 & 1.48 & 1.43 & 1.16 & 1.15 & 1.49 & 1.45 & 21.7\% & 22.7\% & 0.4\% & 3.2\% & 0.3\% \\
+P1b & 159 & 1.38 & 1.38 & 1.18 & 1.27 & 1.39 & 1.37 & 15.1\% & 8.6\% & 0.0\% & 1.4\% & 0.2\% \\
+P1c & 906 & 1.41 & 1.40 & 1.33 & 1.24 & 1.39 & 1.38 & 5.9\% & 12.1\% & 2.4\% & 2.9\% & 0.3\% \\
+P1d & 195 & 1.47 & 1.42 & 1.13 & 1.30 & 1.47 & 1.44 & 23.3\% & 11.8\% & 1.1\% & 3.3\% & 0.1\% \\
+P2a & 593 & 1.41 & 1.43 & 1.39 & 1.27 & 1.33 & 1.36 & 2.6\% & 10.9\% & 6.5\% & 4.5\% & 0.1\% \\
+P2b & 243 & 1.32 & 1.32 & 1.28 & 1.17 & 1.28 & 1.31 & 3.9\% & 11.7\% & 3.6\% & 1.3\% & 0.1\% \\
+P2c & 130 & 1.27 & 1.26 & 1.19 & 0.85 & 1.18 & 1.26 & 8.2\% & 32.6\% & 8.7\% & 1.9\% & 0.1\% \\
+P2d & 541 & 1.44 & 1.47 & 0.96 & 0.75 & 1.43 & 1.39 & 35.3\% & 48.3\% & 2.0\% & 4.2\% & 0.1\% \\
+P3a & 41 & 1.56 & 1.53 & 1.54 & 1.43 & 1.50 & 1.56 & 1.5\% & 8.4\% & 4.2\% & 0.9\% & 0.4\% \\
+P3b & 82 & 1.44 & 0.94 & 1.41 & 1.39 & 1.44 & 1.37 & 3.2\% & 5.6\% & 0.5\% & 6.1\% & 0.6\% \\
+P3c & 180 & 1.59 & 1.60 & 1.58 & 1.43 & 1.56 & 1.44 & 0.8\% & 10.3\% & 2.9\% & 10.5\% & 0.1\% \\
+\bottomrule\end{tabular}\end{table*}
+
+\section{Pre-registered contradiction test}
+Labels, outcome, and tests were fixed in \texttt{analysis/} before the first
+full-scale run. Table~\ref{tab:ct} reports, for each detector, the variance
+in per-primitive recovery explained by the contradiction label and by the
+family, exact permutation $p$-values over all relabellings (330 and 11,550),
+the mean recovery of contradiction-bearing and coherent primitives, Spearman
+correlations with cost and selection frequency (50,000 permutations), and the
+leave-one-primitive-out mean absolute error of each grouping against the
+grand-mean baseline. Per-seed $R^2$ spread is given as mean $\pm$ s.d.
+\begin{table*}[t]\caption{Contradiction versus family.}\label{tab:ct}\centering\scriptsize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lcccccccccccc@{}}\toprule
+Det. & $R^2_{\mathrm{C}}$ & $p$ & mean C & mean not C & $R^2_{\mathrm{fam}}$ & $p$ & $\rho_{\mathrm{cost}}$ ($p$) & $\rho_{\mathrm{freq}}$ ($p$) & MAE C & MAE fam & MAE base & $R^2_{\mathrm{C}}$ per seed \\\midrule
+$D_2$ & 0.04 & 0.567 & 19.8\% & 14.8\% & 0.35 & 0.125 & -0.60 (0.06) & 0.43 (0.19) & 0.123 & 0.099 & 0.107 & 0.04$\pm$0.02 \\
+$D_5$ & 0.00 & 0.955 & 3.0\% & 2.9\% & 0.49 & 0.066 & -0.45 (0.17) & 0.09 (0.80) & 0.025 & 0.021 & 0.023 & 0.02$\pm$0.02 \\
+$D_1$ & 0.05 & 0.524 & 14.2\% & 9.2\% & 0.30 & 0.246 & -0.35 (0.28) & 0.20 (0.55) & 0.109 & 0.088 & 0.102 & 0.05$\pm$0.02 \\
+$D_7$ & 0.05 & 0.542 & 2.8\% & 4.1\% & 0.26 & 0.293 & 0.19 (0.57) & 0.22 (0.52) & 0.025 & 0.023 & 0.021 & 0.05$\pm$0.05 \\
+\bottomrule\end{tabular}\end{table*}
+
+\section{Defect-rate sweep, ablations, prevalence, shift}
+\begin{table*}[t]\caption{Test AUC as the ordinary defect rate $\eta$ rises (seed 7, 100,000 records).}\centering\scriptsize
+\begin{tabular}{@{}lcccccccc@{}}\toprule
+$\eta$ & $D_0$ & $D_1$ & $D_2$ & $D_3$ & $D_4$ & $D_5$ & $D_6$ & $D_7$ \\\midrule
+0.02 & 0.498 & 0.793 & 0.880 & 0.728 & 0.799 & 0.772 & 0.871 & 0.736 \\
+0.05 & 0.499 & 0.808 & 0.896 & 0.736 & 0.818 & 0.799 & 0.881 & 0.746 \\
+0.10 & 0.498 & 0.771 & 0.884 & 0.709 & 0.783 & 0.811 & 0.870 & 0.717 \\
+0.15 & 0.494 & 0.774 & 0.877 & 0.693 & 0.775 & 0.771 & 0.860 & 0.720 \\
+0.25 & 0.490 & 0.742 & 0.870 & 0.658 & 0.736 & 0.778 & 0.851 & 0.707 \\
+0.40 & 0.493 & 0.745 & 0.891 & 0.642 & 0.726 & 0.758 & 0.867 & 0.694 \\
+\bottomrule\end{tabular}\end{table*}
+\begin{table*}[t]\caption{Ablations (seed 7, 100,000 records): test AUC / recovery at the frozen 1\% threshold.}\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llcccc@{}}\toprule
+Factor & Setting & $D_1$ & $D_2$ & $D_5$ & $D_7$ \\\midrule
+family & P1 & 0.702 / 0.037 & 0.662 / 0.057 & 0.678 / 0.131 & 0.619 / 0.027 \\
+family & P2 & 0.860 / 0.107 & 0.987 / 0.288 & 0.871 / 0.167 & 0.683 / 0.013 \\
+family & P3 & 0.364 / 0.000 & 0.812 / 0.122 & 0.660 / 0.071 & 0.876 / 0.075 \\
+budget & k=1 & 0.659 / 0.076 & 0.778 / 0.144 & 0.655 / 0.055 & 0.670 / 0.015 \\
+budget & k=2 & 0.774 / 0.139 & 0.877 / 0.169 & 0.771 / 0.097 & 0.720 / 0.034 \\
+budget & k=3 & 0.838 / 0.199 & 0.927 / 0.209 & 0.859 / 0.089 & 0.761 / 0.052 \\
+knowledge & black & 0.646 / 0.014 & 0.726 / 0.127 & 0.709 / 0.053 & 0.670 / 0.024 \\
+knowledge & grey & 0.774 / 0.139 & 0.877 / 0.169 & 0.771 / 0.097 & 0.720 / 0.034 \\
+\bottomrule\end{tabular}\end{table*}
+\begin{table*}[t]\caption{Prevalence sensitivity (seeds 7--9, 200,000 records): gamed test records, capacity ceiling at 1\%, and per detector AP / precision at the frozen threshold / alerts per detected manipulation.}\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccccc@{}}\toprule
+$\rho$ & gamed (test) & ceiling & $D_1$ & $D_2$ & $D_5$ & $D_7$ \\\midrule
+0.005 & 180 & 1.000 & 0.147 / 0.114 / 9 & 0.083 / 0.080 / 13 & 0.049 / 0.022 / 49 & 0.022 / 0.035 / 31 \\
+0.010 & 363 & 1.000 & 0.182 / 0.204 / 5 & 0.227 / 0.241 / 4 & 0.097 / 0.045 / 23 & 0.041 / 0.071 / 14 \\
+0.050 & 1813 & 0.221 & 0.321 / 0.495 / 2 & 0.501 / 0.805 / 1 & 0.252 / 0.141 / 7 & 0.127 / 0.213 / 5 \\
+\bottomrule\end{tabular}\end{table*}
+\begin{table*}[t]\caption{Generator shift (seeds 7--9): fitted and frozen on A, scored on B's test window; B$\rightarrow$B as reference. AUC / recovery / precision / realised alert rate at the A-frozen 1\% threshold.}\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccc|cc@{}}\toprule
+Det. & AUC A$\rightarrow$B & Rec. & Prec. & Alert rate & AUC B$\rightarrow$B & Rec. B$\rightarrow$B \\\midrule
+$D_0$ & 0.496 & 0.010 & 0.036 & 0.011 & 0.496 & 0.008 \\
+$D_1$ & 0.730 & 0.139 & 0.346 & 0.017 & 0.730 & 0.134 \\
+$D_2$ & 0.875 & 0.375 & 0.365 & 0.045 & 0.897 & 0.160 \\
+$D_3$ & 0.630 & 0.056 & 0.087 & 0.027 & 0.690 & 0.028 \\
+$D_4$ & 0.719 & 0.098 & 0.199 & 0.021 & 0.748 & 0.041 \\
+$D_5$ & 0.765 & 0.019 & 0.131 & 0.006 & 0.786 & 0.178 \\
+$D_6$ & 0.869 & 0.336 & 0.417 & 0.034 & 0.879 & 0.137 \\
+$D_7$ & 0.697 & 0.035 & 0.217 & 0.007 & 0.702 & 0.039 \\
+\bottomrule\end{tabular}\end{table*}
+
+\section{Leave-one-family-out and its mechanism}
+\begin{table*}[t]\caption{Leave-one-family-out on pure-family test records ($k=1$, ten seeds), all detectors; supervised models in $\rightarrow$ out.}\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccccccc@{}}\toprule
+Family & $n$ & $D_0$ & $D_1$ & $D_3$ & $D_4$ & $D_5$ & $D_7$ & $D_2$ / $D_6$ in$\rightarrow$out \\\midrule
+P1 & 773 & 0.497 & 0.551 & 0.615 & 0.598 & 0.514 & 0.576 & 0.633$\rightarrow$0.490 / 0.591$\rightarrow$0.482 \\
+P2 & 734 & 0.502 & 0.825 & 0.589 & 0.769 & 0.834 & 0.715 & 0.976$\rightarrow$0.641 / 0.964$\rightarrow$0.677 \\
+P3 & 130 & 0.504 & 0.383 & 0.450 & 0.419 & 0.538 & 0.851 & 0.550$\rightarrow$0.502 / 0.543$\rightarrow$0.525 \\
+\bottomrule\end{tabular}\end{table*}
+With P1 withheld, an absent ultimate debtor is more common among benign
+training records (27\%) than among the remaining gamed
+ones: the gamed rate given an absent ultimate debtor is
+1.1\% against 2.6\% when it is present (ten-seed
+means). The supervised model learns absence as evidence of benignity, so the
+P1 edits that remove the ultimate debtor score below chance:
+P1a 0.222 (ultimate absent in 100\% of its records), P1c 0.568 (ultimate absent in 20\% of its records), P1d 0.210 (ultimate absent in 100\% of its records).
+
+\section{Validity and artefact audit}
+XSD validation (seed 7): 56{,}241 of 56{,}241 instances valid
+(100.0\%), covering every test-window message, every gamed record
+and every original. By class: P1a 823/823; P1b 790/790; P1c 4619/4619; P1d 965/965; P2a 2937/2937; P2b 1250/1250; P2c 675/675; P2d 2762/2762; P3a 209/209; P3b 420/420; P3c 841/841; benign 37970/37970; unevaded 213/213; original 9029/9029. Invariant violations over
+9{,}029 gamed records: 0. Artefact audit (seed 7, frozen
+1\% thresholds): benign training rows show 72 distinct remittance
+lengths, files of up to 200 children, and names of at least
+4 characters; 1.2\% of gamed test records fall
+outside those ranges against 0.0\% of benign ones, and the share
+of each detector's alert mass on such records is $D_0$ 0.0\%, $D_1$ 2.2\%, $D_2$ 5.4\%, $D_3$ 0.0\%, $D_4$ 1.0\%, $D_5$ 0.0\%, $D_6$ 5.4\%, $D_7$ 0.3\%.
+
+\section{Ethics and release}
+None of the eleven operations is disclosed here for the first time; code
+lists, the harmonised data requirements, and the published screening
+principles are public, and market-practice guidance already records purpose
+codes placed in the wrong field. The asymmetry favours the defender, who can
+map the families onto screened fields, paths, and history features without
+disclosing payment data. The release is non-operational: all weights are
+illustrative constants, no value is calibrated against a real corridor or
+deployment, and the corpus contains no customer, employer, or production
+alert data.
+
+\section{Domain-rater questionnaire}
+For each primitive (definitions only, blind to any result), rate 1--5 with
+one sentence of reasoning: Q1 actor plausibility; Q2 semantics preservation
+(same amount, same economic originator and beneficiary); Q3 cost ordering;
+Q4 schema plausibility; Q5 already described in public guidance; Q6 (yes/no)
+does the edit make two elements of the message, or an element and the
+creditor's profile, inconsistent. Two or three raters with payment-message
+or financial-crime-control experience; report Cohen's $\kappa$ for Q6 and
+Kendall's $W$ for Q1--Q5; Q6 answers replace the pre-registered labels and
+the contradiction test is rerun unchanged.
+\end{document}

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this benchmark or its results, please cite it as below."
-title: "ISO 20022 message-gaming benchmark: generator, evader, screening abstraction, detectors and evaluation harness for 'Gaming ISO 20022 Payment Messages'"
+title: "ISO 20022 message-gaming benchmark: generator, evader, screening abstraction, detectors and temporal evaluation harness for 'Gaming ISO 20022 Payment Messages'"
 abstract: >-
   A seeded synthetic benchmark of eleven message-level manipulations of
   ISO 20022 pain.001 and pacs.008 records (misfielding, purpose-code
@@ -15,8 +15,8 @@ authors:
     given-names: Abhishek
     email: abhicse24@gmail.com
     orcid: "https://orcid.org/0009-0007-1103-2103"
-version: 2.0.0
-date-released: 2026-09-29
+version: 3.0.0
+date-released: 2026-09-30
 license: MIT
 doi: 10.5281/zenodo.23049366
 repository-code: "https://github.com/abhisheksharma2411/ISO-20022_purpose-code_gaming_benchmark"

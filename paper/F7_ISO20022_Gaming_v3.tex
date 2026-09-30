@@ -13,7 +13,7 @@
 \usepackage[hidelinks]{hyperref}
 \pgfplotsset{compat=1.16}
 \newif\ifanonymous
-\anonymoustrue
+\anonymousfalse
 \ifanonymous
   \hypersetup{pdftitle={Gaming ISO 20022 Payment Messages: A Temporal Adversarial Benchmark for Purpose Codes, Party Fields, and Message Paths},pdfauthor={Anonymous}}
 \else
@@ -47,17 +47,17 @@ preserves its stated invariants. Every evaluation is temporal: the earliest
 20\% is scored, with pair-clustered bootstrap intervals over ten seeds.
 Screening-evasion lift (SEL) is measured as a paired counterfactual on each
 manipulated payment. At a frozen 1\% alert threshold, where at most
-@@CEIL1_PCT@@\% of gamed messages can be recovered, the best supervised model
-recovers @@D2_REC1_PCT@@\% and falls from AUC @@P1_D2IN@@ to @@P1_D2OUT@@ on a
+22.4\% of gamed messages can be recovered, the best supervised model
+recovers 18.0\% and falls from AUC 0.633 to 0.490 on a
 withheld misfielding family; the strongest label-free message-level detector
-recovers @@D5_REC1_PCT@@\%. A pre-registered test finds that neither the
-P1/P2/P3 family ($R^2=@@CT_D2_R2F@@$, exact $p=@@CT_D2_PF@@$) nor whether an
-edit leaves an internal contradiction ($R^2=@@CT_D2_R2C@@$, $p=@@CT_D2_PC@@$)
+recovers 3.3\%. A pre-registered test finds that neither the
+P1/P2/P3 family ($R^2=0.35$, exact $p=0.125$) nor whether an
+edit leaves an internal contradiction ($R^2=0.04$, $p=0.567$)
 explains which primitives that model recovers. What separates the families
 is the evidence required: on withheld path and structure edits every
 message-level detector is at or below chance, while a history-only control
-reaches AUC @@P3_D7@@. Splitting a payment raises per-message lift to
-@@P3B_SEL@@ but lowers attempt-level lift to @@P3B_SELATT@@ once every child
+reaches AUC 0.851. Splitting a payment raises per-message lift to
+1.44 but lowers attempt-level lift to 0.94 once every child
 is screened. Results are synthetic and relative to a published screening
 abstraction.
 \end{abstract}
@@ -132,7 +132,7 @@ public guidance and receives a coarse accept-or-hold outcome; its admissible
 set excludes the targeted code substitutions P2a, P2b, and P2d. A grey-box
 adversary also knows the relative ordering of the benchmark's purpose-code
 weights. Route choice (P3a) is a per-record capability held by a PSP,
-bank-side actor, or multi-channel originator, drawn for @@ROUTE_PCT@@\% of
+bank-side actor, or multi-channel originator, drawn for 30\% of
 illicit records. Let $x$ be an illicit instruction, $m$ an admissible
 modification with operational cost $c(m)$, and $\pi(x)$ the alert probability
 in the published screening abstraction. The evader chooses
@@ -193,9 +193,9 @@ Benign remittance text and party names have variable length, so no edit
 leaves a length that benign traffic does not show; an audit checks this on
 every run. Records serialise to pain.001.001.09 or pacs.008.001.08. Every instance
 in the seed-7 test window, every gamed record, and every original was
-validated against the official XSDs (@@XSD_VALID_PCT@@\% of @@XSD_CHECKED@@
+validated against the official XSDs (100.0\% of 56{,}241
 valid), and every gamed record passed its invariant check
-(@@INV_VIOL@@ violations). Full distributions are in the supplement.
+(0 violations). Full distributions are in the supplement.
 
 \subsection{Screening abstraction}
 A name leg matches listed names against the elements the current path
@@ -219,7 +219,7 @@ name leg and floor act once and the score leg once per child, so
 $\pi_{\mathrm{att}}=1-(1-p_{\mathrm{name}})(1-f)(1-p_{\mathrm{score}})^{n_{\mathrm{ch}}}$.
 The evader optimises the per-message form. Baseline survival is split
 between the legs by a name share $\sigma$; the main setting $\pi_0=0.45$,
-$\sigma=0.6$ solves to $P_{\mathrm{name}}=@@PNAME@@$, $\tau=@@TAU@@$. Weights
+$\sigma=0.6$ solves to $P_{\mathrm{name}}=0.337$, $\tau=0.782$. Weights
 are illustrative constants, not any institution's rule set.
 
 \subsection{Features, detectors, protocol}
@@ -240,12 +240,12 @@ benign training rows~\cite{breunig2000}. $D_3$ (isolation forest) and $D_4$
 control, the standardised sum of the six history deviations. No
 hyperparameter is tuned on the benchmark.
 
-Each run has $n=@@N@@$ records. The earliest 60\% trains every learned
+Each run has $n=200{,}000$ records. The earliest 60\% trains every learned
 detector. On the next 20\% the score threshold for each alert capacity (1\%
 and 0.1\%) is frozen, with a label-blind fraction for tied scores. The latest
 20\% is the test window on which every number below is computed. Gamed
-records are @@PREV_PCT@@\% of the test window, so no detector can recover
-more than @@CEIL1_PCT@@\% at 1\% capacity. We report AUC, average precision
+records are 4.5\% of the test window, so no detector can recover
+more than 22.4\% at 1\% capacity. We report AUC, average precision
 (AP), and recovery and precision at the frozen threshold, as means over ten
 seeds with between-seed standard deviations, and pair-clustered bootstrap
 intervals within each test window. SEL is paired. Each gamed test record
@@ -258,9 +258,9 @@ $D_2$ and $D_6$ without one family (at $k=1$, pure-family records).
 \section{Results}
 \begin{table}[!t]
 \caption{Test-window results, mean $\pm$ between-seed s.d. over ten runs of
-@@N@@ records. Rec.\ and Prec.\ are at the threshold frozen on the validation
+200{,}000 records. Rec.\ and Prec.\ are at the threshold frozen on the validation
 window at 1\% capacity; the widest pair-clustered 95\% half-interval for Rec.\
-is @@REC1_HW_MAX@@. $^\dagger$trains on gaming labels.}
+is 0.020. $^\dagger$trains on gaming labels.}
 \label{tab:main}
 \centering
 \scriptsize
@@ -269,35 +269,35 @@ is @@REC1_HW_MAX@@. $^\dagger$trains on gaming labels.}
 \toprule
 Detector & AUC & AP & Rec.@1\% & Prec.@1\% & Alerts/hit & Rec.@0.1\% \\
 \midrule
-$D_1$ rules & @@D1_AUC@@$\pm$@@D1_AUCSD@@ & @@D1_AP@@ & @@D1_REC1@@$\pm$@@D1_REC1SD@@ & @@D1_PREC1@@ & @@D1_APD1@@ & @@D1_REC01@@ \\
-$D_5$ LOF & @@D5_AUC@@$\pm$@@D5_AUCSD@@ & @@D5_AP@@ & @@D5_REC1@@$\pm$@@D5_REC1SD@@ & @@D5_PREC1@@ & @@D5_APD1@@ & @@D5_REC01@@ \\
-$D_7$ history & @@D7_AUC@@$\pm$@@D7_AUCSD@@ & @@D7_AP@@ & @@D7_REC1@@$\pm$@@D7_REC1SD@@ & @@D7_PREC1@@ & @@D7_APD1@@ & @@D7_REC01@@ \\
-$D_2$ GBM$^\dagger$ & @@D2_AUC@@$\pm$@@D2_AUCSD@@ & @@D2_AP@@ & @@D2_REC1@@$\pm$@@D2_REC1SD@@ & @@D2_PREC1@@ & @@D2_APD1@@ & @@D2_REC01@@ \\
-$D_6$ logistic$^\dagger$ & @@D6_AUC@@$\pm$@@D6_AUCSD@@ & @@D6_AP@@ & @@D6_REC1@@$\pm$@@D6_REC1SD@@ & @@D6_PREC1@@ & @@D6_APD1@@ & @@D6_REC01@@ \\
+$D_1$ rules & 0.771$\pm$0.004 & 0.321 & 0.112$\pm$0.005 & 0.499 & 2.0 & 0.022 \\
+$D_5$ LOF & 0.775$\pm$0.005 & 0.249 & 0.033$\pm$0.005 & 0.136 & 7.5 & 0.012 \\
+$D_7$ history & 0.717$\pm$0.006 & 0.123 & 0.035$\pm$0.004 & 0.205 & 4.9 & 0.003 \\
+$D_2$ GBM$^\dagger$ & 0.886$\pm$0.008 & 0.498 & 0.180$\pm$0.014 & 0.818 & 1.2 & 0.021 \\
+$D_6$ logistic$^\dagger$ & 0.862$\pm$0.009 & 0.436 & 0.155$\pm$0.013 & 0.712 & 1.4 & 0.020 \\
 \midrule
-Capacity ceiling & -- & -- & @@CEIL1@@ & 1.000 & -- & @@CEIL01@@ \\
+Capacity ceiling & -- & -- & 0.224 & 1.000 & -- & 0.022 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Recovery at a frozen threshold}
 Table~\ref{tab:main} separates ranking from operational recovery under a
-threshold frozen before the scored period. Gamed records are @@PREV_PCT@@\% of
-the test window, so 1\% capacity can recover at most @@CEIL1_PCT@@\%. The
-fixed rules $D_1$ recover @@D1_REC1_PCT@@\% at precision @@D1_PREC1@@: one
+threshold frozen before the scored period. Gamed records are 4.5\% of
+the test window, so 1\% capacity can recover at most 22.4\%. The
+fixed rules $D_1$ recover 11.2\% at precision 0.499: one
 alert in two is a gamed message. The local outlier factor $D_5$ has the best
-label-free AUC (@@D5_AUC@@ against @@D1_AUC@@ for $D_1$) and the second-best
-AP, yet the lowest label-free recovery, @@D5_REC1_PCT@@\%; the history-only
-control $D_7$ recovers @@D7_REC1_PCT@@\%. Among label-free detectors neither
+label-free AUC (0.775 against 0.771 for $D_1$) and the second-best
+AP, yet the lowest label-free recovery, 3.3\%; the history-only
+control $D_7$ recovers 3.5\%. Among label-free detectors neither
 AUC nor AP orders recovery at the frozen threshold. The supervised $D_2$
-reaches AUC @@D2_AUC@@ and recovers @@D2_REC1_PCT@@\%
-(@@D2_CAP_SHARE_PCT@@\% of the ceiling, precision @@D2_PREC1@@); logistic
-regression on the same inputs recovers @@D6_REC1_PCT@@\%. Realised alert
-rates on the test window stay within @@ALERT_DEV@@ of the 1\% target, so the
+reaches AUC 0.886 and recovers 18.0\%
+(80\% of the ceiling, precision 0.818); logistic
+regression on the same inputs recovers 15.5\%. Realised alert
+rates on the test window stay within 0.002 of the 1\% target, so the
 frozen thresholds transferred across the window boundary. The exact
 top-1\% ranking metric differs from frozen-threshold recovery by at most
-@@TOPQ_DIFF_MAX@@ (supplement). Between-seed standard deviations are at most
-@@MAX_SD_AUC@@ for AUC and @@MAX_SD_REC@@ for recovery.
+0.011 (supplement). Between-seed standard deviations are at most
+0.009 for AUC and 0.014 for recovery.
 
 \subsection{Generalisation, history, and shift}
 \begin{table}[!t]
@@ -314,45 +314,45 @@ seeds); B$\rightarrow$B in parentheses.}
 \toprule
  & P1 & P2 & P3 & AUC A$\rightarrow$B & Rec.@1\% & Alert rate \\
 \midrule
-$D_1$ & @@P1_D1@@ & @@P2_D1@@ & @@P3_D1@@ & @@SH_D1_AB_AUC@@ (@@SH_D1_BB_AUC@@) & @@SH_D1_AB_REC@@ & @@SH_D1_AB_ALERT@@ \\
-$D_5$ & @@P1_D5@@ & @@P2_D5@@ & @@P3_D5@@ & @@SH_D5_AB_AUC@@ (@@SH_D5_BB_AUC@@) & @@SH_D5_AB_REC@@ & @@SH_D5_AB_ALERT@@ \\
-$D_7$ & @@P1_D7@@ & @@P2_D7@@ & @@P3_D7@@ & @@SH_D7_AB_AUC@@ (@@SH_D7_BB_AUC@@) & @@SH_D7_AB_REC@@ & @@SH_D7_AB_ALERT@@ \\
-$D_2$ & @@P1_D2IN@@$\rightarrow$@@P1_D2OUT@@ & @@P2_D2IN@@$\rightarrow$@@P2_D2OUT@@ & @@P3_D2IN@@$\rightarrow$@@P3_D2OUT@@ & @@SH_D2_AB_AUC@@ (@@SH_D2_BB_AUC@@) & @@SH_D2_AB_REC@@ & @@SH_D2_AB_ALERT@@ \\
-$D_6$ & @@P1_D6IN@@$\rightarrow$@@P1_D6OUT@@ & @@P2_D6IN@@$\rightarrow$@@P2_D6OUT@@ & @@P3_D6IN@@$\rightarrow$@@P3_D6OUT@@ & @@SH_D6_AB_AUC@@ (@@SH_D6_BB_AUC@@) & @@SH_D6_AB_REC@@ & @@SH_D6_AB_ALERT@@ \\
+$D_1$ & 0.551 & 0.825 & 0.383 & 0.730 (0.730) & 0.139 & 0.017 \\
+$D_5$ & 0.514 & 0.834 & 0.538 & 0.765 (0.786) & 0.019 & 0.006 \\
+$D_7$ & 0.576 & 0.715 & 0.851 & 0.697 (0.702) & 0.035 & 0.007 \\
+$D_2$ & 0.633$\rightarrow$0.490 & 0.976$\rightarrow$0.641 & 0.550$\rightarrow$0.502 & 0.875 (0.897) & 0.375 & 0.045 \\
+$D_6$ & 0.591$\rightarrow$0.482 & 0.964$\rightarrow$0.677 & 0.543$\rightarrow$0.525 & 0.869 (0.879) & 0.336 & 0.034 \\
 \bottomrule
 \end{tabular}
 \end{table}
 Table~\ref{tab:loo} (left) retrains the supervised models without one
 family and scores pure-family test records. With P1 withheld, $D_2$ falls from
-@@P1_D2IN@@ to @@P1_D2OUT@@ (between-seed s.d.\ @@P1_D2OUT_SD@@), and no
-label-free detector exceeds @@P1_LF_MAX@@ on P1, whose records are dominated
+0.633 to 0.490 (between-seed s.d.\ 0.018), and no
+label-free detector exceeds 0.598 on P1, whose records are dominated
 by name truncation. The inversion behind the low supervised score is
 systematic. In the reduced training window an absent ultimate debtor is more
-common among benign records (@@MECH_BEN_ABS_PCT@@\%) than among the remaining
-gamed ones, and the gamed rate given absence is @@MECH_P_ABS_PCT@@\% against
-@@MECH_P_PRES_PCT@@\% given presence. The two P1 edits that remove the
-ultimate debtor therefore score @@MECH_P1A_AUC@@ (P1a) and @@MECH_P1D_AUC@@
+common among benign records (27\%) than among the remaining
+gamed ones, and the gamed rate given absence is 1.1\% against
+2.6\% given presence. The two P1 edits that remove the
+ultimate debtor therefore score 0.222 (P1a) and 0.210
 (P1d) against benign traffic, while truncation, which leaves it in place,
-scores @@MECH_P1C_AUC@@. With P2 withheld the supervised drop is
-@@P2_D2IN@@$\rightarrow$@@P2_D2OUT@@ while the label-free $D_1$ and $D_5$
-stay at @@P2_D1@@ and @@P2_D5@@. P3 is the pre-registered contrast. Every
-message-level detector is at or below chance (@@P3_D1@@ to @@P3_D5@@; the
-withheld $D_2$ @@P3_D2OUT@@), and the history-only $D_7$ reaches @@P3_D7@@.
+scores 0.568. With P2 withheld the supervised drop is
+0.976$\rightarrow$0.641 while the label-free $D_1$ and $D_5$
+stay at 0.825 and 0.834. P3 is the pre-registered contrast. Every
+message-level detector is at or below chance (0.383 to 0.538; the
+withheld $D_2$ 0.502), and the history-only $D_7$ reaches 0.851.
 Path substitution, decomposition, and party-chain changes leave the message
 coherent but break the pair's prior pattern. Table~\ref{tab:loo} (right) fits the detectors and freezes thresholds on
 configuration A, then scores configuration B, whose pair behaviour, industry
 and corridor mix, defect composition, batching, and string lengths all
-differ. Rankings transfer: every AUC is within @@SH_AUC_GAP_MAX@@ of its
+differ. Rankings transfer: every AUC is within 0.022 of its
 B$\rightarrow$B value. Thresholds do not: $D_2$'s A-frozen threshold alerts
-@@SH_D2_AB_ALERT_PCT@@\% of B's test window instead of 1\%, which is why its
-recovery rises to @@SH_D2_AB_REC_PCT@@\% at precision @@SH_D2_AB_PREC@@,
-while $D_5$'s alerts @@SH_D5_AB_ALERT_PCT@@\% and recovers
-@@SH_D5_AB_REC_PCT@@\%. A capacity budget therefore needs recalibration on
+4.5\% of B's test window instead of 1\%, which is why its
+recovery rises to 37.5\% at precision 0.365,
+while $D_5$'s alerts 0.6\% and recovers
+1.9\%. A capacity budget therefore needs recalibration on
 the target traffic even when the ranking model does not. At 0.5\% prevalence
 (supplement), precision at the frozen threshold falls to
-@@PREV_0_005_D2_PREC@@ for $D_2$ and @@PREV_0_005_D1_PREC@@ for $D_1$, so the
-fixed rules overtake the supervised model, at @@PREV_0_005_D2_APD@@ and
-@@PREV_0_005_D1_APD@@ alerts per detected manipulation.
+0.080 for $D_2$ and 0.114 for $D_1$, so the
+fixed rules overtake the supervised model, at 13 and
+9 alerts per detected manipulation.
 
 \subsection{Paired screening-evasion lift}
 \begin{figure}[!t]
@@ -362,20 +362,20 @@ fixed rules overtake the supervised model, at @@PREV_0_005_D2_APD@@ and
   width=0.98\columnwidth,height=4.6cm,
   ybar=0.4pt,bar width=2.4pt,ylabel={Lift},
   symbolic x coords={P1a,P1b,P1c,P1d,P2a,P2b,P2c,P2d,P3a,P3b,P3c},
-  xtick=data,ymin=@@SEL_YMIN@@,ymax=@@SEL_YMAX@@,grid=both,grid style={black!12},
+  xtick=data,ymin=0.60,ymax=1.95,grid=both,grid style={black!12},
   legend style={at={(0.02,0.97)},anchor=north west,font=\tiny,draw=black!30,legend columns=5},
   label style={font=\scriptsize},tick label style={font=\tiny},
   extra y ticks={1.0},extra y tick labels={},extra y tick style={grid=major,grid style={black!60,dashed}}
 ]
-\addplot[fill=black!12] coordinates {@@SEL_COORDS@@};
+\addplot[fill=black!12] coordinates {(P1a,1.485) (P1b,1.376) (P1c,1.409) (P1d,1.472) (P2a,1.415) (P2b,1.318) (P2c,1.272) (P2d,1.444) (P3a,1.559) (P3b,1.442) (P3c,1.593)};
 \addlegendentry{SEL}
-\addplot[fill=black!35] coordinates {@@SELRES_D1_COORDS@@};
+\addplot[fill=black!35] coordinates {(P1a,1.160) (P1b,1.183) (P1c,1.333) (P1d,1.128) (P2a,1.385) (P2b,1.284) (P2c,1.189) (P2d,0.959) (P3a,1.543) (P3b,1.407) (P3c,1.580)};
 \addlegendentry{res.\ $D_1$}
-\addplot[fill=black!60] coordinates {@@SELRES_D5_COORDS@@};
+\addplot[fill=black!60] coordinates {(P1a,1.490) (P1b,1.391) (P1c,1.390) (P1d,1.471) (P2a,1.334) (P2b,1.285) (P2c,1.181) (P2d,1.434) (P3a,1.497) (P3b,1.443) (P3c,1.563)};
 \addlegendentry{res.\ $D_5$}
-\addplot[fill=black!85] coordinates {@@SELRES_D2_COORDS@@};
+\addplot[fill=black!85] coordinates {(P1a,1.150) (P1b,1.271) (P1c,1.241) (P1d,1.297) (P2a,1.266) (P2b,1.174) (P2c,0.854) (P2d,0.750) (P3a,1.431) (P3b,1.385) (P3c,1.426)};
 \addlegendentry{res.\ $D_2$}
-\addplot[fill=white,draw=black,postaction={pattern=north east lines}] coordinates {@@SELATT_COORDS@@};
+\addplot[fill=white,draw=black,postaction={pattern=north east lines}] coordinates {(P1a,1.435) (P1b,1.382) (P1c,1.403) (P1d,1.424) (P2a,1.434) (P2b,1.317) (P2c,1.257) (P2d,1.468) (P3a,1.532) (P3b,0.943) (P3c,1.601)};
 \addlegendentry{attempt}
 \end{axis}
 \end{tikzpicture}
@@ -385,22 +385,22 @@ attempt-level lift when every child transaction is screened.}
 \label{fig:sel}
 \end{figure}
 Fig.~\ref{fig:sel} gives paired SEL per primitive. Manipulation raises
-modelled pass-through by @@SEL_PCT_MIN@@--@@SEL_PCT_MAX@@\% per primitive and
-@@SEL_ALL_PCT@@\% overall, with pair-clustered half-intervals of at most
-@@SEL_HW_MAX@@. Residual lift shows what each detector removes at its frozen
-threshold. $D_2$ pushes the code--narrative mismatch P2d to @@P2D_RES_D2@@
-and the omitted code P2c to @@P2C_RES_D2@@, both below 1. It does so by
-alerting @@P2D_DET_D2_PCT@@\% and @@P2C_DET_D2_PCT@@\% of them while
+modelled pass-through by 27--59\% per primitive and
+40\% overall, with pair-clustered half-intervals of at most
+0.122. Residual lift shows what each detector removes at its frozen
+threshold. $D_2$ pushes the code--narrative mismatch P2d to 0.75
+and the omitted code P2c to 0.85, both below 1. It does so by
+alerting 48.3\% and 32.6\% of them while
 alerting under 1\% of their unmanipulated originals. The fixed rules bring
-P2d to @@P2D_RES_D1@@. The path and party-chain edits keep most of their lift under
+P2d to 0.96. The path and party-chain edits keep most of their lift under
 every detector: the smallest residual lifts for P3a and P3c are
-@@P3A_RESMIN@@ and @@P3C_RESMIN@@. The history-only $D_7$ is the detector
-that reaches P3c (@@P3C_DET_D7_PCT@@\% against @@P3C_DET_D1_PCT@@\% for
+1.43 and 1.43. The history-only $D_7$ is the detector
+that reaches P3c (10.5\% against 0.8\% for
 $D_1$). Splitting shows the value of the attempt-level view. P3b's
-per-message lift is @@P3B_SEL@@, but once every child transaction is screened
-its attempt-level lift is @@P3B_SELATT@@, below 1, so file decomposition pays
+per-message lift is 1.44, but once every child transaction is screened
+its attempt-level lift is 0.94, below 1, so file decomposition pays
 only against per-message thresholds. For every other primitive the two forms
-agree within @@ATT_DIFF_MAX@@.
+agree within 0.05.
 
 \subsection{What predicts detectability}\label{sec:ct}
 The reviewed version of this work read its results as showing that
@@ -408,20 +408,20 @@ detectability follows whether an edit leaves a checkable contradiction rather
 than its family. We fixed that reading as a hypothesis, with labels and tests,
 before the first run of the corrected protocol (Table~\ref{tab:prims};
 supplement). It does not hold. For the supervised $D_2$ the contradiction
-label explains $R^2=@@CT_D2_R2C@@$ of the variance in per-primitive recovery
-at the frozen threshold (exact permutation $p=@@CT_D2_PC@@$ over all 330
-relabellings; contradiction-bearing primitives @@CT_D2_M1@@\% against
-@@CT_D2_M0@@\% for coherent ones). The family explains $R^2=@@CT_D2_R2F@@$
-($p=@@CT_D2_PF@@$ over 11,550). For the label-free $D_5$ the figures are
-@@CT_D5_R2C@@ ($p=@@CT_D5_PC@@$) and @@CT_D5_R2F@@ ($p=@@CT_D5_PF@@$). Cost
-correlates negatively with recovery ($\rho=@@CT_D2_RHOCOST@@$,
-$p=@@CT_D2_PCOST@@$); frequency does not. Leave-one-primitive-out prediction
-from either grouping is no better than the grand mean (MAE @@CT_D2_LOOC@@ and
-@@CT_D2_LOOF@@ against @@CT_D2_LOOB@@). The per-primitive rates show why.
+label explains $R^2=0.04$ of the variance in per-primitive recovery
+at the frozen threshold (exact permutation $p=0.567$ over all 330
+relabellings; contradiction-bearing primitives 19.8\% against
+14.8\% for coherent ones). The family explains $R^2=0.35$
+($p=0.125$ over 11,550). For the label-free $D_5$ the figures are
+0.00 ($p=0.955$) and 0.49 ($p=0.066$). Cost
+correlates negatively with recovery ($\rho=-0.60$,
+$p=0.06$); frequency does not. Leave-one-primitive-out prediction
+from either grouping is no better than the grand mean (MAE 0.123 and
+0.099 against 0.107). The per-primitive rates show why.
 The omitted purpose code P2c, labelled coherent, is the second most recovered
-primitive (@@P2C_DET_D2_PCT@@\%), because absence is itself a feature. The
+primitive (32.6\%), because absence is itself a feature. The
 address contradiction P1b, labelled contradiction-bearing, is barely
-recovered (@@P1B_DET_D2_PCT@@\%), because no feature compares the structured
+recovered (8.6\%), because no feature compares the structured
 town with the free-text line. Detectability follows the checks a detector
 actually has; a contradiction that no feature reads goes unseen. What does
 separate the families is the kind of evidence required, as the
@@ -434,10 +434,10 @@ rules, not the hardest.
 \section{Discussion, Limitations, and Conclusion}
 Three results survive every protocol correction. Ranking quality does not
 translate into recovery at a frozen threshold: label-free detectors with AUC
-between @@D7_AUC@@ and @@D5_AUC@@ recover between @@D5_REC1_PCT@@\% and
-@@D1_REC1_PCT@@\% of gamed messages when 1\% of traffic may be alerted,
-against a ceiling of @@CEIL1_PCT@@\%. The best-ranking one recovers the
-least. A supervised model that recovers @@D2_REC1_PCT@@\% in-distribution
+between 0.717 and 0.775 recover between 3.3\% and
+11.2\% of gamed messages when 1\% of traffic may be alerted,
+against a ceiling of 22.4\%. The best-ranking one recovers the
+least. A supervised model that recovers 18.0\% in-distribution
 falls to chance on a family it has not seen, and the reason can be read off
 the training distribution: the ordinary-error floor makes the signature of
 the unseen edit look benign. The primitives that reroute, decompose, or
@@ -453,11 +453,11 @@ precision collapses for every detector.
 Limitations. The screening abstraction is transparent, not a reconstruction
 of any engine, so SEL is a stress measure relative to it. Its weights, the
 defect mix, pair behaviour, and illicit prevalence are assumptions. The SEL
-range across the calibration grid (@@GRID_SEL_MIN@@ to @@GRID_SEL_MAX@@)
+range across the calibration grid (1.14 to 2.85)
 shows how much the modelled threat depends on them. Generator and detectors
-share a feature vocabulary; the audit finds @@ART_BEN_PCT@@\% of benign and
-@@ART_GAMED_PCT@@\% of gamed test records outside the benign training ranges
-and at most @@ART_MASS_MAX_PCT@@\% of any detector's alert mass on them.
+share a feature vocabulary; the audit finds 0.0\% of benign and
+1.2\% of gamed test records outside the benign training ranges
+and at most 5\% of any detector's alert mass on them.
 Domain ratings of the primitives have not been collected; the questionnaire
 and blinded procedure are released and the pre-registered test reruns
 unchanged on raters' labels. XSD validity is not scheme or business
@@ -467,12 +467,12 @@ acceptance, and time order is synthetic and without drift.
 \ifanonymous
 The generator, harness, result files, and verification scripts accompany
 the submission and will be public on acceptance; every result file records
-the commit that produced it (\texttt{@@COMMIT@@}).
+the commit that produced it (\texttt{17bb868dd2b1}).
 \else
 The generator, harness, result files, and verification scripts are public at
 \url{https://github.com/abhisheksharma2411/ISO-20022_purpose-code_gaming_benchmark}
 (MIT) and archived at \url{https://doi.org/10.5281/zenodo.23049366}. Every
-result file records the commit that produced it (\texttt{@@COMMIT@@}). One
+result file records the commit that produced it (\texttt{17bb868dd2b1}). One
 command regenerates every table and figure, and one command validates every
 message against the XSDs and every edit against its invariants.
 \fi

@@ -1,0 +1,106 @@
+(eval):1: command not found: setsid
+[09:15:57]   pi0=0.3 share=0.8: D1 0.759 SEL 1.17-1.31
+[calibrate] P_NAME=0.2357 TAU=0.7075 floor=0.100 share=0.4 listed-in-screened=0.758 -> pi_0=0.4505 (name 0.179 / score 0.256) target 0.45 [OK]
+[09:16:15]   pi0=0.45 share=0.4: D1 0.784 SEL 1.25-1.47
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:16:32]   pi0=0.45 share=0.6: D1 0.774 SEL 1.26-1.62
+[calibrate] P_NAME=0.4293 TAU=0.8965 floor=0.100 share=0.8 listed-in-screened=0.758 -> pi_0=0.4501 (name 0.326 / score 0.094) target 0.45 [OK]
+[09:16:50]   pi0=0.45 share=0.8: D1 0.765 SEL 1.36-1.78
+[calibrate] P_NAME=0.3652 TAU=0.6079 floor=0.100 share=0.4 listed-in-screened=0.758 -> pi_0=0.5999 (name 0.277 / score 0.385) target 0.6 [OK]
+[09:17:07]   pi0=0.6 share=0.4: D1 0.785 SEL 1.43-1.86
+[calibrate] P_NAME=0.5079 TAU=0.6899 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.6003 (name 0.385 / score 0.277) target 0.6 [OK]
+[09:17:24]   pi0=0.6 share=0.6: D1 0.767 SEL 1.38-2.25
+[calibrate] P_NAME=0.6293 TAU=0.8145 floor=0.100 share=0.8 listed-in-screened=0.758 -> pi_0=0.6006 (name 0.477 / score 0.151) target 0.6 [OK]
+[09:17:42]   pi0=0.6 share=0.8: D1 0.778 SEL 1.59-2.85
+[09:17:42] phase 1: main runs n=200000 seeds=[7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:18:38]   seed 7: D1 0.780/0.108 D2 0.895/0.180 D5 0.770/0.031 D7 0.714/0.035 gamed_test=1817
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:19:33]   seed 8: D1 0.770/0.109 D2 0.883/0.178 D5 0.779/0.038 D7 0.715/0.036 gamed_test=1801
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:20:28]   seed 9: D1 0.769/0.113 D2 0.888/0.160 D5 0.774/0.030 D7 0.721/0.042 gamed_test=1821
+[calibrate] P_NAME=0.3422 TAU=0.7793 floor=0.100 share=0.6 listed-in-screened=0.748 -> pi_0=0.4497 (name 0.256 / score 0.180) target 0.45 [OK]
+[09:21:24]   seed 10: D1 0.777/0.117 D2 0.881/0.165 D5 0.777/0.027 D7 0.723/0.033 gamed_test=1826
+[calibrate] P_NAME=0.3338 TAU=0.7808 floor=0.100 share=0.6 listed-in-screened=0.766 -> pi_0=0.4491 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:22:19]   seed 11: D1 0.769/0.107 D2 0.880/0.176 D5 0.775/0.031 D7 0.719/0.038 gamed_test=1753
+[calibrate] P_NAME=0.3440 TAU=0.7471 floor=0.100 share=0.6 listed-in-screened=0.744 -> pi_0=0.4503 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:23:14]   seed 12: D1 0.769/0.107 D2 0.898/0.191 D5 0.786/0.044 D7 0.713/0.037 gamed_test=1835
+[calibrate] P_NAME=0.3387 TAU=0.8027 floor=0.100 share=0.6 listed-in-screened=0.755 -> pi_0=0.4487 (name 0.256 / score 0.178) target 0.45 [OK]
+[09:24:09]   seed 13: D1 0.773/0.114 D2 0.874/0.204 D5 0.770/0.035 D7 0.717/0.027 gamed_test=1739
+[calibrate] P_NAME=0.3509 TAU=0.7734 floor=0.100 share=0.6 listed-in-screened=0.729 -> pi_0=0.4497 (name 0.256 / score 0.180) target 0.45 [OK]
+[09:25:03]   seed 14: D1 0.768/0.107 D2 0.892/0.183 D5 0.778/0.031 D7 0.709/0.035 gamed_test=1745
+[calibrate] P_NAME=0.3355 TAU=0.7881 floor=0.100 share=0.6 listed-in-screened=0.762 -> pi_0=0.4501 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:25:58]   seed 15: D1 0.766/0.122 D2 0.881/0.167 D5 0.768/0.034 D7 0.709/0.034 gamed_test=1727
+[calibrate] P_NAME=0.3404 TAU=0.7764 floor=0.100 share=0.6 listed-in-screened=0.751 -> pi_0=0.4497 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:26:53]   seed 16: D1 0.771/0.116 D2 0.892/0.193 D5 0.779/0.026 D7 0.725/0.035 gamed_test=1784
+[09:26:53] phase 2: leave-one-family-out (k=1)
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:28:01]   seed 7: P1:0.631->0.495 P2:0.977->0.620 P3:0.516->0.484
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:29:09]   seed 8: P1:0.623->0.485 P2:0.980->0.634 P3:0.547->0.494
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:30:16]   seed 9: P1:0.647->0.491 P2:0.982->0.679 P3:0.558->0.493
+[calibrate] P_NAME=0.3422 TAU=0.7793 floor=0.100 share=0.6 listed-in-screened=0.748 -> pi_0=0.4497 (name 0.256 / score 0.180) target 0.45 [OK]
+[09:31:24]   seed 10: P1:0.617->0.491 P2:0.978->0.620 P3:0.570->0.534
+[calibrate] P_NAME=0.3338 TAU=0.7808 floor=0.100 share=0.6 listed-in-screened=0.766 -> pi_0=0.4491 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:32:31]   seed 11: P1:0.633->0.491 P2:0.970->0.651 P3:0.591->0.534
+[calibrate] P_NAME=0.3440 TAU=0.7471 floor=0.100 share=0.6 listed-in-screened=0.744 -> pi_0=0.4503 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:33:39]   seed 12: P1:0.653->0.520 P2:0.977->0.647 P3:0.566->0.526
+[calibrate] P_NAME=0.3387 TAU=0.8027 floor=0.100 share=0.6 listed-in-screened=0.755 -> pi_0=0.4487 (name 0.256 / score 0.178) target 0.45 [OK]
+[09:34:46]   seed 13: P1:0.626->0.503 P2:0.978->0.636 P3:0.528->0.478
+[calibrate] P_NAME=0.3509 TAU=0.7734 floor=0.100 share=0.6 listed-in-screened=0.729 -> pi_0=0.4497 (name 0.256 / score 0.180) target 0.45 [OK]
+[09:35:50]   seed 14: P1:0.632->0.493 P2:0.973->0.704 P3:0.508->0.468
+[calibrate] P_NAME=0.3355 TAU=0.7881 floor=0.100 share=0.6 listed-in-screened=0.762 -> pi_0=0.4501 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:36:57]   seed 15: P1:0.636->0.449 P2:0.976->0.656 P3:0.546->0.495
+[calibrate] P_NAME=0.3404 TAU=0.7764 floor=0.100 share=0.6 listed-in-screened=0.751 -> pi_0=0.4497 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:38:03]   seed 16: P1:0.629->0.479 P2:0.974->0.561 P3:0.565->0.511
+[09:38:03] phase 3: eta sweep
+[09:38:25]   eta=0.02: D1 0.793 D2 0.880 D5 0.772 D7 0.736
+[09:38:45]   eta=0.05: D1 0.808 D2 0.896 D5 0.799 D7 0.746
+[09:39:05]   eta=0.1: D1 0.771 D2 0.884 D5 0.811 D7 0.717
+[09:39:22]   eta=0.15: D1 0.774 D2 0.877 D5 0.771 D7 0.720
+[09:39:38]   eta=0.25: D1 0.742 D2 0.870 D5 0.778 D7 0.707
+[09:39:51]   eta=0.4: D1 0.745 D2 0.891 D5 0.758 D7 0.694
+[09:39:51] phase 4: ablations
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:40:07]   family P1: D1 0.702 D2 0.662 D5 0.678 D7 0.619
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:40:24]   family P2: D1 0.860 D2 0.987 D5 0.871 D7 0.683
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:40:39]   family P3: D1 0.364 D2 0.812 D5 0.660 D7 0.876
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:40:55]   budget k=1: D1 0.659 D2 0.778 D5 0.655 D7 0.670
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:41:12]   budget k=2: D1 0.774 D2 0.877 D5 0.771 D7 0.720
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:41:33]   budget k=3: D1 0.838 D2 0.927 D5 0.859 D7 0.761
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:41:50]   knowledge black: D1 0.646 D2 0.726 D5 0.709 D7 0.670
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:42:07]   knowledge grey: D1 0.774 D2 0.877 D5 0.771 D7 0.720
+[09:42:07] phase 5: prevalence sensitivity
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:43:59]   rho=0.005: ceiling 1.000 D2 prec 0.080 D1 prec 0.114
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:45:57]   rho=0.01: ceiling 1.000 D2 prec 0.241 D1 prec 0.204
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:47:58]   rho=0.05: ceiling 0.221 D2 prec 0.805 D1 prec 0.495
+[09:47:58] phase 6: generator shift A -> B
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:49:11]   seed 7: D1 A->B 0.734/0.133 (B->B 0.734) D2 A->B 0.863/0.367 (B->B 0.899) D5 A->B 0.764/0.017 (B->B 0.784) D7 A->B 0.699/0.034 (B->B 0.705)
+[calibrate] P_NAME=0.3452 TAU=0.7910 floor=0.100 share=0.6 listed-in-screened=0.741 -> pi_0=0.4496 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:50:26]   seed 8: D1 A->B 0.716/0.131 (B->B 0.716) D2 A->B 0.868/0.383 (B->B 0.886) D5 A->B 0.759/0.021 (B->B 0.775) D7 A->B 0.691/0.036 (B->B 0.695)
+[calibrate] P_NAME=0.3413 TAU=0.7529 floor=0.100 share=0.6 listed-in-screened=0.750 -> pi_0=0.4494 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:51:44]   seed 9: D1 A->B 0.740/0.153 (B->B 0.740) D2 A->B 0.895/0.376 (B->B 0.908) D5 A->B 0.773/0.019 (B->B 0.799) D7 A->B 0.701/0.036 (B->B 0.706)
+[09:51:44] phase 7: XSD validation and invariants (seed 7)
+[calibrate] P_NAME=0.3373 TAU=0.7822 floor=0.100 share=0.6 listed-in-screened=0.758 -> pi_0=0.4500 (name 0.256 / score 0.179) target 0.45 [OK]
+[09:52:01]   XSD valid 56241/56241; invariant violations 0
+[09:52:01] phase 8: artefact audit
+[09:52:23]   gamed out of range 0.0121; max alert mass 0.054
+[09:52:23] done in 2239s

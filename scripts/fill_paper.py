@@ -1,230 +1,216 @@
 #!/usr/bin/env python3
-"""Fill every result-derived number in the manuscript from results/summary.json.
+"""Fill every @@TOKEN@@ in the paper and supplement drafts from
+results/summary.json and results/contradiction_test.json. Fails on an
+unknown or leftover token and on any qualitative claim that does not hold.
 
-Usage: fill_paper.py <draft.tex> <repo> <out.tex>
-Every @@TOKEN@@ in the draft is replaced from the summary; the script fails if a
-token is unknown, if a token remains, or if a qualitative claim the prose makes
-does not hold in the data (see CLAIMS at the bottom).
+Usage: fill_paper_v3.py <repo> <results-dir> <draft.tex> <out.tex> [<supp-draft.tex> <supp-out.tex>]
 """
 import json, math, re, sys
 import numpy as np
 
-draft, repo, out = sys.argv[1:4]
-S = json.load(open(f"{repo}/results/summary.json"))
-seeds = S["seeds"]; n = S["n_each"]
-D = S["detectors"]; L = S["loo"]; SEL = S["sel"]; SEL5 = S["sel_D5"]
+repo, RES, draft, out = sys.argv[1:5]
+sd_in, sd_out = (sys.argv[5], sys.argv[6]) if len(sys.argv) > 6 else (None, None)
+S = json.load(open(f"{RES}/summary.json"))
+CT = json.load(open(f"{RES}/contradiction_test.json"))
+sys.path.insert(0, repo)
+import iso20022_gaming_bench as B
+D = S["detectors"]; SEL = S["sel"]; L = S["loo"]; SH = S["shift"]; PR = S["prevalence"]
+V = S["validity"]; AU = S["artefact_audit"]; G = S["grid"]; ETA = S["eta_sweep"]; ABL = S["ablations"]
+prims = B.PRIMITIVES
 tok = {}
-
-def f3(x): return f"{x:.3f}"
-def sd(v): return float(np.std(v, ddof=1))
-
-tok["N"] = f"{n:,}".replace(",", "{,}")
-ng = S["n_gamed"]; ni = S["n_illicit"]; nu = S["n_unevaded_illicit"]
-tok["GAMED_PCT"] = f"{100*np.mean(ng)/n:.1f}"
-tok["NGAMED_RANGE"] = f"{min(ng):,}--{max(ng):,}".replace(",", "{,}")
-tok["ILLICIT_GAMED_PCT"] = f"{100*np.mean([g/i for g,i in zip(ng,ni)]):.1f}"
-tok["UNEVADED_RANGE"] = f"{min(nu)}--{max(nu)}"
-tok["UNEVADED_LIST"] = ", ".join(f"0/{u}" for u in nu)
-c1, c01 = S["tpr_ceiling@0.01"], S["tpr_ceiling@0.001"]
-tok["CEIL1"], tok["CEIL01"] = f3(c1), f3(c01)
-tok["CEIL1_PCT"], tok["CEIL01_PCT"] = f"{100*c1:.1f}", f"{100*c01:.1f}"
-tok["PNAME"] = f3(S["config"]["solved_P_NAME"]); tok["TAU"] = f3(S["config"]["solved_TAU"])
-tok["COMMIT"] = S["git_commit"][:12]
-assert "dirty" not in S["git_commit"] and S["git_commit"] != "unversioned", S["git_commit"]
-
-ceil_seed = [0.01*n/g for g in ng]
+f3 = lambda x: f"{x:.3f}"; f2 = lambda x: f"{x:.2f}"; pct1 = lambda x: f"{100*x:.1f}"; pct0 = lambda x: f"{100*x:.0f}"
+n = S["n_each"]
+tok["N"] = f"{n:,}".replace(",", "{,}"); tok["COMMIT"] = S["git_commit"][:12]
+assert "dirty" not in S["git_commit"] and S["git_commit"] != "unversioned"
+tok["PREV_PCT"] = pct1(S["prevalence_test"]); c1, c01 = S["tpr_ceiling@0.01"], S["tpr_ceiling@0.001"]
+tok["CEIL1"], tok["CEIL01"], tok["CEIL1_PCT"] = f3(c1), f3(c01), pct1(c1)
+tok["PNAME"], tok["TAU"] = f3(S["config"]["solved_P_NAME"]), f3(S["config"]["solved_TAU"])
+tok["ROUTE_PCT"] = pct0(B.CONFIG_A.route_choice_rate)
+tok["NGAMED_TEST_RANGE"] = f"{min(S['n_gamed_test']):,}--{max(S['n_gamed_test']):,}".replace(",", "{,}")
 for d, e in D.items():
-    tok[f"{d}_AUC"] = f3(e["auc"]); tok[f"{d}_AUCSD"] = f3(sd(e["auc_per_seed"]))
-    tok[f"{d}_AP"] = f3(e["ap"])
-    tok[f"{d}_T1"] = f3(e["tpr@0.01"]); tok[f"{d}_T1SD"] = f3(sd(e["tpr@0.01_per_seed"]))
-    tok[f"{d}_T01"] = f3(e["tpr@0.001"])
-    tok[f"{d}_T1_PCT"] = f"{100*e['tpr@0.01']:.1f}"; tok[f"{d}_T01_PCT"] = f"{100*e['tpr@0.001']:.1f}"
-    prec = [t/c for t, c in zip(e["tpr@0.01_per_seed"], ceil_seed)]
-    tok[f"{d}_P1"] = f3(np.mean(prec)); tok[f"{d}_P1_PCT"] = f"{100*np.mean(prec):.0f}"
-    hw = max((hi-lo)/2 for lo, hi in e["auc_ci95_per_seed"])
-    tok[f"{d}_AUC_HW"] = f3(hw)
-    hw1 = max((hi-lo)/2 for lo, hi in e["tpr@0.01_ci95_per_seed"])
-    tok[f"{d}_T1_HW_PCT"] = f"{100*hw1:.1f}"
-    tok[f"{d}_BEN1"] = f"{e['benign_alerts_per_M@0.01']:.0f}"
-    tok[f"{d}_CAP_SHARE_PCT"] = f"{100*e['tpr@0.01']/c1:.0f}"
-
+    tok[f"{d}_AUC"], tok[f"{d}_AUCSD"], tok[f"{d}_AP"] = f3(e["auc"]), f3(e["auc_sd"]), f3(e["ap"])
+    tok[f"{d}_REC1"], tok[f"{d}_REC1SD"], tok[f"{d}_REC1_PCT"] = f3(e["recovery@0.01"]), f3(e["recovery@0.01_sd"]), pct1(e["recovery@0.01"])
+    tok[f"{d}_PREC1"], tok[f"{d}_PREC1_PCT"] = f3(e["precision@0.01"]), pct0(e["precision@0.01"])
+    tok[f"{d}_ALERT1"] = f3(e["alert_rate@0.01"]); apd = e["alerts_per_detection@0.01"]
+    tok[f"{d}_APD1"] = f"{apd:.1f}" if math.isfinite(apd) else "--"
+    tok[f"{d}_REC01"], tok[f"{d}_TOPQ1"] = f3(e["recovery@0.001"]), f3(e["topq_recovery@0.01"])
+    tok[f"{d}_AUC_HW"], tok[f"{d}_REC1_HW"] = f3(e["auc_ci95_halfwidth_max"]), f3(e["recovery@0.01_ci95_halfwidth_max"])
+    tok[f"{d}_CAP_SHARE_PCT"] = pct0(e["recovery@0.01"] / c1)
+lf = ("D1", "D4", "D5", "D7"); shown = ("D1", "D2", "D5", "D6", "D7")
+tok["ALERT_DEV"] = f3(max(abs(D[d]["alert_rate@0.01"] - 0.01) for d in shown))
+tok["TOPQ_DIFF_MAX"] = f3(max(abs(D[d]["topq_recovery@0.01"] - D[d]["recovery@0.01"]) for d in shown))
+tok["MAX_SD_AUC"] = f3(max(D[d]["auc_sd"] for d in shown)); tok["MAX_SD_REC"] = f3(max(D[d]["recovery@0.01_sd"] for d in shown))
+tok["REC1_HW_MAX"] = f3(max(D[d]["recovery@0.01_ci95_halfwidth_max"] for d in ("D1", "D2", "D5", "D6", "D7")))
+tok["AUC_HW_MAX"] = f3(max(D[d]["auc_ci95_halfwidth_max"] for d in ("D1", "D2", "D5", "D6", "D7")))
+# LOO
 for fam in ("P1", "P2", "P3"):
     r = L[fam]
+    if "D2" not in r:
+        for d in B.DETECTORS: tok[f"{fam}_{d}"] = "--"; tok[f"{fam}_{d}IN"] = tok[f"{fam}_{d}OUT"] = "--"
+        tok[f"{fam}_N"] = "--"; continue
     tok[f"{fam}_N"] = f"{int(round(r['n_pure']))}"
-    for d in ("D1", "D4", "D5"):
-        tok[f"{fam}_{d}"] = f3(r[d])
-    for d in ("D2", "D6"):
-        tok[f"{fam}_{d}IN"] = f3(r[d + "_matched_in"]); tok[f"{fam}_{d}OUT"] = f3(r[d])
-        outs = [o for _, o in r[d + "_per_seed"]]; ins = [i for i, _ in r[d + "_per_seed"]]
-        tok[f"{fam}_{d}OUT_RANGE"] = f"{min(outs):.3f}--{max(outs):.3f}"
-        tok[f"{fam}_{d}IN_RANGE"] = f"{min(ins):.3f}--{max(ins):.3f}"
-
-etas = sorted(S["eta_sweep"], key=float)
-for d in ("D1", "D3", "D4", "D5"):
-    tok[f"ETA_{d}"] = " ".join(f"({float(e):.2f},{S['eta_sweep'][e][d]:.4f})" for e in etas)
-    tok[f"ETA_{d}_DROP"] = f3(S["eta_sweep"][etas[0]][d] - S["eta_sweep"][etas[-1]][d])
-allv = [S["eta_sweep"][e][d] for e in etas for d in ("D1", "D3", "D4", "D5")]
-tok["ETA_YMIN"] = f"{math.floor((min(allv)-0.01)*20)/20:.2f}"; tok["ETA_YMAX"] = f"{math.ceil((max(allv)+0.01)*20)/20:.2f}"
-tok["ETA_LO"], tok["ETA_HI"] = f"{float(etas[0]):.2f}", f"{float(etas[-1]):.2f}"
-
-prims = [p for p in ("P1a","P1b","P1c","P1d","P2a","P2b","P2c","P2d","P3a","P3b","P3c") if p in SEL]
-assert len(prims) == 11, prims
-tok["SEL_COORDS"] = " ".join(f"({p},{SEL[p]['SEL']:.3f})" for p in prims)
-tok["SELRES4_COORDS"] = " ".join(f"({p},{SEL[p]['SEL_res']:.3f})" for p in prims)
-tok["SELRES5_COORDS"] = " ".join(f"({p},{SEL5[p]['SEL_res']:.3f})" for p in prims)
-sels = [SEL[p]["SEL"] for p in prims]; res4 = [SEL[p]["SEL_res"] for p in prims]; res5 = [SEL5[p]["SEL_res"] for p in prims]
-tok["SEL_MIN"], tok["SEL_MAX"] = f"{min(sels):.2f}", f"{max(sels):.2f}"
+    for d in B.DETECTORS:
+        tok[f"{fam}_{d}"] = f3(r[d]); tok[f"{fam}_{d}IN"] = f3(r[d + "_matched_in"]); tok[f"{fam}_{d}OUT"] = f3(r[d])
+        tok[f"{fam}_{d}OUT_SD"] = f3(r.get(d + "_sd", 0.0))
+tok["P1_LF_MAX"] = f3(max(L["P1"][d] for d in ("D1", "D4", "D5", "D7"))) if "D1" in L["P1"] else "--"
+mech = L["P1"]
+tok["MECH_BEN_ABS_PCT"] = pct0(mech.get("benign_share_ultimate_absent", float("nan")))
+tok["MECH_P_ABS_PCT"] = pct1(mech.get("train_P_gamed_given_ultimate_absent", float("nan")))
+tok["MECH_P_PRES_PCT"] = pct1(mech.get("train_P_gamed_given_ultimate_present", float("nan")))
+parts = []
+for p in ("P1a", "P1b", "P1c", "P1d"):
+    k = f"{p}_heldout_auc_D2"
+    if k in mech:
+        parts.append(f"{p} {f3(mech[k])} (ultimate absent in {pct0(mech[p + '_ultimate_absent_share'])}\\% of its records)")
+        tok[f"MECH_{p.upper()}_AUC"] = f3(mech[k])
+tok["MECH_PRIMS"] = ", ".join(parts) if parts else "no primitive had 30 pure test records in every seed"
+# SEL
+def sel_val(p, key):
+    return SEL[p].get(key, float("nan"))
+tok["SEL_COORDS"] = " ".join(f"({p},{sel_val(p,'SEL'):.3f})" for p in prims)
+tok["SELATT_COORDS"] = " ".join(f"({p},{sel_val(p,'SEL_attempt'):.3f})" for p in prims)
+for d in ("D1", "D2", "D5", "D7"):
+    tok[f"SELRES_{d}_COORDS"] = " ".join(f"({p},{sel_val(p, f'SEL_res_{d}'):.3f})" for p in prims)
+allv = [sel_val(p, k) for p in prims for k in ("SEL", "SEL_attempt", "SEL_res_D1", "SEL_res_D2", "SEL_res_D5", "SEL_res_D7")]
+allv = [v for v in allv if math.isfinite(v)]
+tok["SEL_YMIN"] = f"{max(0.0, math.floor((min(allv) - 0.05) * 10) / 10):.2f}"; tok["SEL_YMAX"] = f"{max(allv) * 1.22:.2f}"
+sels = [sel_val(p, "SEL") for p in prims]
+tok["SEL_MIN"], tok["SEL_MAX"] = f2(min(sels)), f2(max(sels))
 tok["SEL_PCT_MIN"], tok["SEL_PCT_MAX"] = f"{100*(min(sels)-1):.0f}", f"{100*(max(sels)-1):.0f}"
-tok["SEL_YMIN"] = f"{math.floor(min(res4+res5+[1.0])*20)/20-0.05:.2f}"; tok["SEL_YMAX"] = f"{max(sels)*1.08:.2f}"
-tok["SEL_HW_MAX"] = f3(max((hi-lo)/2 for p in prims for lo, hi in SEL[p]["SEL_ci_per_seed"]))
-tok["SELRES_HW_MAX"] = f3(max((hi-lo)/2 for p in prims for lo, hi in SEL[p]["SEL_res_ci_per_seed"]))
+tok["SEL_ALL"] = f2(SEL["all"]["SEL"]); tok["SEL_ATT_ALL"] = f2(SEL["all"]["SEL_attempt"])
+for d in ("D1", "D2", "D5", "D7"):
+    tok[f"SEL_RES_ALL_{d}"] = f2(SEL["all"][f"SEL_res_{d}"])
 for p in prims:
-    tok[f"{p.upper()}_SEL"] = f3(SEL[p]["SEL"]); tok[f"{p.upper()}_RES4"] = f3(SEL[p]["SEL_res"]); tok[f"{p.upper()}_RES5"] = f3(SEL5[p]["SEL_res"])
-    tok[f"{p.upper()}_DET4_PCT"] = f"{100*SEL[p]['detect_rate']:.1f}"; tok[f"{p.upper()}_DET5_PCT"] = f"{100*SEL5[p]['detect_rate']:.1f}"
-tok["P2D_CI_LIST"] = ", ".join(f"{lo:.3f}--{hi:.3f}" for lo, hi in SEL["P2d"]["SEL_res_ci_per_seed"])
-tok["P2D_CI5_LIST"] = ", ".join(f"{lo:.3f}--{hi:.3f}" for lo, hi in SEL5["P2d"]["SEL_res_ci_per_seed"])
-p2abc4 = [SEL[p]["detect_rate"] for p in ("P2a","P2b","P2c")]; p2abc5 = [SEL5[p]["detect_rate"] for p in ("P2a","P2b","P2c")]
-tok["P2ABC_DET4_MIN"], tok["P2ABC_DET4_MAX"] = f"{100*min(p2abc4):.1f}", f"{100*max(p2abc4):.1f}"
-tok["P2ABC_DET5_MIN"], tok["P2ABC_DET5_MAX"] = f"{100*min(p2abc5):.1f}", f"{100*max(p2abc5):.1f}"
-# Conservative sensitivity: replace an observed delta0 of zero by the exact
-# Clopper-Pearson two-sided 95% upper bound for 0/n and rescale the P2d
-# residual-SEL upper endpoints.
-d0 = S["delta0"]
-if all(x == 0.0 for x in d0):
-    ub = [1 - 0.025 ** (1.0 / u) for u in nu]
-    adj4 = max(hi / (1 - b) for (lo, hi), b in zip(SEL["P2d"]["SEL_res_ci_per_seed"], ub))
-    tok["P2D_CP_UPPER4"] = f3(adj4); tok["P2D_HI4"] = f3(max(hi for lo, hi in SEL["P2d"]["SEL_res_ci_per_seed"]))
-    tok["DELTA0_ZERO"] = "yes"
-else:
-    tok["DELTA0_ZERO"] = "no"
-    tok["P2D_CP_UPPER4"] = "n/a"; tok["P2D_HI4"] = "n/a"
+    P = p.upper()
+    tok[f"{P}_SEL"] = f2(sel_val(p, "SEL")); tok[f"{P}_SELATT"] = f2(sel_val(p, "SEL_attempt")); tok[f"{P}_N"] = f"{sel_val(p, 'n_mean'):.0f}"
+    for d in ("D1", "D2", "D5", "D7"):
+        tok[f"{P}_RES_{d}"] = f2(sel_val(p, f"SEL_res_{d}")); tok[f"{P}_DET_{d}_PCT"] = pct1(sel_val(p, f"detect_rate_{d}"))
+tok["SEL_ALL_PCT"] = f"{100*(SEL['all']['SEL']-1):.0f}"
+for p in prims:
+    P = p.upper(); tok[f"{P}_RESMIN"] = f2(min(sel_val(p, f"SEL_res_{d}") for d in ("D1", "D2", "D5", "D7")))
+tok["ATT_DIFF_MAX"] = f2(max(abs(sel_val(p, "SEL") - sel_val(p, "SEL_attempt")) for p in prims if p != "P3b"))
+hw = []
+for p in prims:
+    for c in SEL[p].get("SEL_ci95_per_seed", []):
+        if c: hw.append((c[1] - c[0]) / 2)
+tok["SEL_HW_MAX"] = f3(max(hw)) if hw else "--"
+# contradiction test
+for d in ("D2", "D5", "D1", "D7"):
+    r = CT["detectors"][d]; c = r["contradiction"]; f = r["family"]
+    tok[f"CT_{d}_R2C"], tok[f"CT_{d}_PC"] = f2(c["r2"]), f"{c['p_r2']:.3f}"
+    tok[f"CT_{d}_M1"], tok[f"CT_{d}_M0"] = pct1(c["mean_1"]), pct1(c["mean_0"])
+    tok[f"CT_{d}_R2F"], tok[f"CT_{d}_PF"] = f2(f["r2"]), f"{f['p_r2']:.3f}"
+    tok[f"CT_{d}_RHOCOST"], tok[f"CT_{d}_PCOST"] = f2(r["cost"]["rho"]), f"{r['cost']['p']:.2f}"
+    tok[f"CT_{d}_RHOFREQ"], tok[f"CT_{d}_PFREQ"] = f2(r["frequency"]["rho"]), f"{r['frequency']['p']:.2f}"
+    tok[f"CT_{d}_LOOC"], tok[f"CT_{d}_LOOF"], tok[f"CT_{d}_LOOB"] = f3(c["loo_mae"]), f3(f["loo_mae"]), f3(r["baseline_loo_mae"])
+    tok[f"CT_{d}_R2C_SEEDS"] = f"{r['per_seed_r2_contradiction_mean']:.2f}$\\pm${r['per_seed_r2_contradiction_sd']:.2f}"
+# prevalence
+for rho, e in PR.items():
+    key = rho.replace(".", "_")
+    tok[f"PREV_{key}_CEIL"] = f3(e["ceiling@0.01"]); tok[f"PREV_{key}_NG"] = f"{e['n_gamed_test']:.0f}"
+    for d in ("D1", "D2", "D5", "D7"):
+        tok[f"PREV_{key}_{d}_PREC"] = f3(e[d]["precision@0.01"]); tok[f"PREV_{key}_{d}_REC"] = f3(e[d]["recovery@0.01"])
+        tok[f"PREV_{key}_{d}_AP"] = f3(e[d]["ap"]); apd = e[d]["alerts_per_detection@0.01"]
+        tok[f"PREV_{key}_{d}_APD"] = f"{apd:.0f}" if math.isfinite(apd) else "--"
+# shift
+for d in B.DETECTORS:
+    for side, tag in (("A_to_B", "AB"), ("B_to_B", "BB")):
+        e = SH[d][side]
+        tok[f"SH_{d}_{tag}_AUC"], tok[f"SH_{d}_{tag}_REC"], tok[f"SH_{d}_{tag}_PREC"], tok[f"SH_{d}_{tag}_ALERT"] = f3(e["auc"]), f3(e["recovery@0.01"]), f3(e["precision@0.01"]), f3(e["alert_rate@0.01"])
+shown = ("D1", "D2", "D5", "D6", "D7")
+tok["SH_AUC_GAP_MAX"] = f3(max(abs(SH[d]["A_to_B"]["auc"] - SH[d]["B_to_B"]["auc"]) for d in shown))
+for d in B.DETECTORS:
+    tok[f"SH_{d}_AB_ALERT_PCT"] = pct1(SH[d]["A_to_B"]["alert_rate@0.01"]); tok[f"SH_{d}_AB_REC_PCT"] = pct1(SH[d]["A_to_B"]["recovery@0.01"])
+# validity and audit
+tok["XSD_CHECKED"] = f"{V['xsd']['checked']:,}".replace(",", "{,}"); tok["XSD_VALID"] = f"{V['xsd']['valid']:,}".replace(",", "{,}")
+tok["XSD_VALID_PCT"] = f"{100*V['xsd']['valid']/max(1,V['xsd']['checked']):.1f}"
+tok["INV_VIOL"] = str(V["invariants"]["violations_total"]); tok["INV_CHECKED"] = f"{V['invariants']['gamed_checked']:,}".replace(",", "{,}")
+tok["ART_GAMED_PCT"] = pct1(AU["share_gamed_test_out_of_range"]); tok["ART_BEN_PCT"] = pct1(AU["share_benign_test_out_of_range"])
+tok["ART_MASS_MAX_PCT"] = pct0(max(AU["alert_mass_on_out_of_range"].values()))
+tok["ART_LENS"], tok["ART_MAXSPLIT"], tok["ART_MINNAME"] = str(AU["benign_train_remittance_lengths"]), str(AU["benign_train_max_splits"]), str(AU["benign_train_min_name_len"])
+tok["ART_MASS_LIST"] = ", ".join(f"${d}$ {pct1(v)}\\%".replace("$D", "$D_").replace("_", "_{", 1).replace("$ ", "}$ ", 1) if False else f"$D_{d[1]}$ {pct1(v)}\\%" for d, v in AU["alert_mass_on_out_of_range"].items())
+# eta drops, grid ranges
+etas = sorted(ETA, key=float)
+for d in ("D1", "D2", "D5", "D7"):
+    tok[f"ETA_{d}_DROP"] = f3(ETA[etas[0]][d]["auc"] - ETA[etas[-1]][d]["auc"])
+tok["GRID_SEL_MIN"], tok["GRID_SEL_MAX"] = f2(min(v["SEL_min"] for v in G.values())), f2(max(v["SEL_max"] for v in G.values()))
+tok["GRID_D1_MIN"], tok["GRID_D1_MAX"] = f3(min(v["D1_auc"] for v in G.values())), f3(max(v["D1_auc"] for v in G.values()))
+# --- supplement table bodies -------------------------------------------------
+def esc(s): return str(s).replace("_", "\\_")
+A_, B_ = B.CONFIG_A, B.CONFIG_B
+rows = []
+for fld in ("pairs_per", "pair_concentration", "profile_alpha", "profile_perturb", "industry_weights", "corridor_weights", "path_pref_beta", "batch_rate", "batch_size_range", "batch_tail", "ultimate_beta", "ult_names", "amount_logmean", "amount_pair_sd", "amount_msg_sd", "defect_mix", "rmt_words_max", "rmt_second_ref", "name_len", "route_choice_rate", "listed_ultimate_share"):
+    rows.append(f"{esc(fld)} & {esc(getattr(A_, fld))} & {esc(getattr(B_, fld))} \\\\")
+tok["TAB_GEN"] = "\n".join(rows)
+tok["TAB_COUNTS"] = "; ".join(f"{p} {S['primitive_counts'][p]:.0f} ({S['primitive_counts_test'][p]:.0f})" for p in prims)
+tok["TAB_GRID"] = "\n".join(f"{v_key.split(',')[0].split('=')[1]} & {v_key.split(',')[1].split('=')[1]} & {f3(v['P_NAME'])} & {f3(v['TAU'])} & {f3(v['D1_auc'])} & {f3(v['D2_auc'])} & {f3(v['D5_auc'])} & {f2(v['SEL_min'])}--{f2(v['SEL_max'])} \\\\" for v_key, v in G.items())
+tok["TAB_MAIN_FULL"] = "\n".join(f"$D_{d[1]}$ & {tok[d+'_AUC']}$\\pm${tok[d+'_AUCSD']} & {tok[d+'_AP']} & {tok[d+'_REC1']}$\\pm${tok[d+'_REC1SD']} & {tok[d+'_PREC1']} & {tok[d+'_ALERT1']} & {tok[d+'_TOPQ1']} & {tok[d+'_REC01']} & {tok[d+'_AUC_HW']} & {tok[d+'_REC1_HW']} \\\\" for d in B.DETECTORS)
+tok["TAB_PRIMS"] = "\n".join(f"{p} & {tok[p.upper()+'_N']} & {tok[p.upper()+'_SEL']} & {tok[p.upper()+'_SELATT']} & " + " & ".join(tok[f"{p.upper()}_RES_{d}"] for d in ("D1", "D2", "D5", "D7")) + " & " + " & ".join(tok[f"{p.upper()}_DET_{d}_PCT"] + "\\%" for d in ("D1", "D2", "D5", "D7")) + f" & {pct1(sel_val(p, 'orig_detect_rate_D2'))}\\% \\\\" for p in prims)
+tok["TAB_CT"] = "\n".join(f"$D_{d[1]}$ & {tok[f'CT_{d}_R2C']} & {tok[f'CT_{d}_PC']} & {tok[f'CT_{d}_M1']}\\% & {tok[f'CT_{d}_M0']}\\% & {tok[f'CT_{d}_R2F']} & {tok[f'CT_{d}_PF']} & {tok[f'CT_{d}_RHOCOST']} ({tok[f'CT_{d}_PCOST']}) & {tok[f'CT_{d}_RHOFREQ']} ({tok[f'CT_{d}_PFREQ']}) & {tok[f'CT_{d}_LOOC']} & {tok[f'CT_{d}_LOOF']} & {tok[f'CT_{d}_LOOB']} & {tok[f'CT_{d}_R2C_SEEDS']} \\\\" for d in ("D2", "D5", "D1", "D7"))
+tok["TAB_ETA"] = "\n".join(f"{float(e):.2f} & " + " & ".join(f3(ETA[e][d]["auc"]) for d in B.DETECTORS) + " \\\\" for e in etas)
+tok["TAB_ABL"] = "\n".join(f"{a['factor']} & {esc(a['setting'])} & " + " & ".join(f"{f3(a[d]['auc'])} / {f3(a[d]['recovery@0.01'])}" for d in ("D1", "D2", "D5", "D7")) + " \\\\" for a in ABL)
+tok["TAB_PREV"] = "\n".join(f"{float(rho):.3f} & {e['n_gamed_test']:.0f} & {f3(e['ceiling@0.01'])} & " + " & ".join(f"{f3(e[d]['ap'])} / {f3(e[d]['precision@0.01'])} / {e[d]['alerts_per_detection@0.01']:.0f}" for d in ("D1", "D2", "D5", "D7")) + " \\\\" for rho, e in PR.items())
+tok["TAB_SHIFT"] = "\n".join(f"$D_{d[1]}$ & {tok[f'SH_{d}_AB_AUC']} & {tok[f'SH_{d}_AB_REC']} & {tok[f'SH_{d}_AB_PREC']} & {tok[f'SH_{d}_AB_ALERT']} & {tok[f'SH_{d}_BB_AUC']} & {tok[f'SH_{d}_BB_REC']} \\\\" for d in B.DETECTORS)
+tok["TAB_LOO_FULL"] = "\n".join((f"{fam} & {tok[fam+'_N']} & " + " & ".join(tok[f"{fam}_{d}"] for d in ("D0", "D1", "D3", "D4", "D5", "D7")) + f" & {tok[fam+'_D2IN']}$\\rightarrow${tok[fam+'_D2OUT']} / {tok[fam+'_D6IN']}$\\rightarrow${tok[fam+'_D6OUT']} \\\\") for fam in ("P1", "P2", "P3"))
+bp = V["xsd"]["by_primitive"]
+tok["TAB_XSD"] = "; ".join(f"{k} {v['valid']}/{v['checked']}" for k, v in bp.items() if v["checked"])
 
-# D5 residual-SEL baseline and the same conservative sensitivity check
-import glob as _glob
-_mains = [json.load(open(x)) for x in sorted(_glob.glob(f"{repo}/results/phase1_main_seed*.json"))]
-d05 = [m["sel_D5"]["_baseline"]["delta0"] for m in _mains]
-tok["DELTA0_D5_LIST"] = ", ".join(f"{x:.3f}" for x in d05)
-if all(x == 0.0 for x in d05):
-    ub = [1 - 0.025 ** (1.0 / u) for u in nu]
-    adj5 = max(hi / (1 - b) for (lo, hi), b in zip(SEL5["P2d"]["SEL_res_ci_per_seed"], ub))
-    tok["P2D_CP_UPPER5"] = f3(adj5)
-else:
-    tok["P2D_CP_UPPER5"] = "n/a"
-tok["P2D_HI5"] = f3(max(hi for lo, hi in SEL5["P2d"]["SEL_res_ci_per_seed"]))
-tok["P2D_HI4"] = f3(max(hi for lo, hi in SEL["P2d"]["SEL_res_ci_per_seed"]))
-tok["CP_UB_MAX_PCT"] = f"{100*max(1 - 0.025 ** (1.0 / u) for u in nu):.1f}"
+# --- substitute -----------------------------------------------------------------
+PROSE = {"RES_A", "RES_B", "RES_B_SHIFT", "RES_C", "RES_D", "DISCUSSION"}   # written by hand after the run
+def fill(src, dst):
+    text = open(src).read(); used = set(); missing = set()
+    def rep(mo):
+        key = mo.group(1); used.add(key)
+        if key not in tok:
+            if key in PROSE:
+                missing.add(key); return f"[[pending {key.replace(chr(95), chr(32))}]]"
+            raise SystemExit(f"unknown token {key}")
+        return tok[key]
+    text = re.sub(r"@@([A-Za-z0-9_]+)@@", rep, text)
+    assert "@@" not in text, "leftover token"
+    if missing: print("  prose tokens still pending:", sorted(missing))
+    open(dst, "w").write(text); return len(used)
+nu = fill(draft, out); print(f"paper: {nu} tokens -> {out}")
+if sd_in:
+    ns = fill(sd_in, sd_out); print(f"supplement: {ns} tokens -> {sd_out}")
+json.dump(tok, open(out.rsplit(".", 1)[0] + ".tokens.json", "w"), indent=1)
 
-# diagnostics (seed 7): artefact audit and P1 inversion mechanism
-DG = json.load(open(f"{repo}/results/diagnostics_seed7.json"))
-A = DG["artefact_audit"]; M = DG["p1_inversion"]
-tok["ART_GAMED_PCT"] = f"{100*A['share_gamed_out_of_range']:.1f}"
-tok["ART_BENIGN_PCT"] = f"{100*A['share_benign_out_of_range']:.1f}"
-for d, v in A["alert_mass_on_out_of_range"].items():
-    tok[f"ART_MASS_{d}_PCT"] = f"{100*v:.0f}"
-tok["RULE_AUC"] = f3(A["out_of_range_rule"]["auc"]); tok["RULE_REC1_PCT"] = f"{100*A['out_of_range_rule']['rec@0.01']:.1f}"
-tok["INR_NGAMED"] = f"{A['in_range_subset']['n_gamed']:,}".replace(",", "{,}")
-for d, v in A["in_range_subset"]["auc"].items():
-    tok[f"INR_{d}_AUC"] = f3(v)
-for d, v in A["in_range_subset"]["rec@0.01"].items():
-    tok[f"INR_{d}_REC1_PCT"] = f"{100*v:.1f}"
-tok["MECH_HELDOUT_AUC"] = f3(M["heldout_P1_auc_D2"])
-tok["MECH_P_ABS_PCT"] = f"{100*M['train_P_gamed_given_ultimate_absent']:.1f}"
-tok["MECH_P_PRES_PCT"] = f"{100*M['train_P_gamed_given_ultimate_present']:.1f}"
-tok["MECH_BEN_ABS_PCT"] = f"{100*M['benign_share_ultimate_absent']:.0f}"
-for prim in ("P1a", "P1c", "P1d"):
-    pp = M["per_primitive"][prim]
-    tok[f"MECH_{prim.upper()}_AUC"] = f3(pp["heldout_auc_vs_benign_D2"]) if "heldout_auc_vs_benign_D2" in pp else "n/a"
-    tok[f"MECH_{prim.upper()}_ABS_PCT"] = f"{100*pp['ultimate_absent_share']:.0f}" if "ultimate_absent_share" in pp else "n/a"
-tok["MECH_N"] = f"{M['n']:,}".replace(",", "{,}")
-
-tok["NGAMED_MEAN"] = f"{int(round(np.mean(ng), -1)):,}".replace(",", "{,}")
-tok["MAX_SD_AUC"] = f3(max(sd(D[d]["auc_per_seed"]) for d in D))
-tok["MAX_SD_T1"] = f3(max(sd(D[d]["tpr@0.01_per_seed"]) for d in D))
-tok["MAX_AUC_HW"] = f3(max(float(tok[f"{d}_AUC_HW"]) for d in D))
-best_lf_t1 = max(D[d]["tpr@0.01"] for d in ("D0", "D1", "D3", "D4", "D5"))
-tok["D6_MINUS_D1_PP"] = f"{100*(D['D6']['tpr@0.01'] - best_lf_t1):.1f}"
-tok["D2_MINUS_D6_PP"] = f"{100*(D['D2']['tpr@0.01'] - D['D6']['tpr@0.01']):.1f}"
-tok["ART_MASS_MAX_PCT"] = f"{100*max(A['alert_mass_on_out_of_range'].values()):.0f}"
-d5e = [S["eta_sweep"][e]["D5"] for e in etas]
-tok["ETA_D5_ABSDROP"] = f3(max(d5e) - min(d5e))
-tok["DELTA0_COUNTS"] = ", ".join(f"{int(round(x*u))}/{u}" for x, u in zip(d0, nu))
-from math import comb
-def cp_upper(k, nn, alpha=0.025):
-    lo, hi = 0.0, 1.0
-    for _ in range(60):
-        p = (lo + hi) / 2
-        cdf = sum(comb(nn, i) * p**i * (1-p)**(nn-i) for i in range(k+1))
-        lo, hi = (p, hi) if cdf > alpha else (lo, p)
-    return (lo + hi) / 2
-infl = max(1/(1-cp_upper(int(round(x*u)), u)) / (1/(1-x)) - 1 for x, u in zip(d0, nu))
-tok["RES_INFLATION_MAX_PCT"] = f"{100*infl:.0f}"
-tok["MECH_P1C_PRES_PCT"] = f"{100*(1-M['per_primitive']['P1c']['ultimate_absent_share']):.0f}"
-tok["MECH_P1B_N"] = str(M["per_primitive"]["P1b"]["n"])
-
-g = S["grid"]
-tok["GRID_SEL_MIN"] = f"{min(v['SEL_min'] for v in g.values()):.2f}"; tok["GRID_SEL_MAX"] = f"{max(v['SEL_max'] for v in g.values()):.2f}"
-tok["GRID_D4_MIN"] = f3(min(v["D4_auc"] for v in g.values())); tok["GRID_D4_MAX"] = f3(max(v["D4_auc"] for v in g.values()))
-
-abl = {a["setting"]: a for a in S["ablations"]}
-m = {"P1": "P1 only", "P2": "P2 only", "P3": "P3 only", "K1": "$k=1$", "K2": "$k=2$", "K3": "$k=3$", "B": "black-box", "G": "grey-box"}
-for k, setting in m.items():
-    tok[f"ABL_{k}_4"] = f3(abl[setting]["D4_auc"]); tok[f"ABL_{k}_5"] = f3(abl[setting]["D5_auc"])
-
-text = open(draft).read()
-used = set()
-def rep(mo):
-    key = mo.group(1); used.add(key)
-    if key not in tok: raise SystemExit(f"unknown token {key}")
-    return tok[key]
-text = re.sub(r"@@([A-Za-z0-9_]+)@@", rep, text)
-assert "@@" not in text
-open(out, "w").write(text)
-json.dump(tok, open(out.rsplit(".",1)[0] + ".tokens.json", "w"), indent=1)
-
-# ---- qualitative claims the prose makes; fail loudly if the data disagree ---
-labelfree = ["D0", "D1", "D3", "D4", "D5"]
+# --- qualitative claims (extended after the full run) ----------------------------
 CLAIMS = {
- "D5 is the best label-free detector by AUC": max(labelfree, key=lambda d: D[d]["auc"]) == "D5",
- "label-free AUC order D5>D4>D1": D["D5"]["auc"] > D["D4"]["auc"] > D["D1"]["auc"],
- "label-free recovery order D1>D4>D5 (reverse)": D["D1"]["tpr@0.01"] > D["D4"]["tpr@0.01"] > D["D5"]["tpr@0.01"],
- "D1 recovers about half the ceiling (0.45-0.55)": 0.45 < D["D1"]["tpr@0.01"]/c1 < 0.55,
- "D1 fills the 0.1% capacity with gamed records (zero benign alerts)": D["D1"]["benign_alerts_per_M@0.001"] == 0 and abs(D["D1"]["tpr@0.001"] - c01) < 0.0005,
- "D1 has the best label-free average precision": max(labelfree, key=lambda d: D[d]["ap"]) == "D1",
- "D2 has the best AUC overall": max(D, key=lambda d: D[d]["auc"]) == "D2",
- "D2 does not saturate the 1% capacity": c1 - D["D2"]["tpr@0.01"] > 0.01,
- "D5 beats D3 on AUC, AP and both recoveries": all(D["D5"][m] > D["D3"][m] for m in ("auc", "ap", "tpr@0.01", "tpr@0.001")),
- "D5 recovers less than D4 at 1%": D["D5"]["tpr@0.01"] < D["D4"]["tpr@0.01"],
- "D6 recovers more than the best label-free": D["D6"]["tpr@0.01"] > best_lf_t1,
- "D2 recovers more than D6": D["D2"]["tpr@0.01"] > D["D6"]["tpr@0.01"],
- "boosting adds at least as much as labels (D2-D6 >= D6-bestLF)": (D["D2"]["tpr@0.01"] - D["D6"]["tpr@0.01"]) >= (D["D6"]["tpr@0.01"] - best_lf_t1),
- "differences discussed exceed uncertainty": (D["D5"]["auc"]-D["D4"]["auc"] > float(tok["MAX_AUC_HW"])) and (D["D4"]["auc"]-D["D1"]["auc"] > float(tok["MAX_AUC_HW"])) and (D["D4"]["tpr@0.01"]-D["D5"]["tpr@0.01"] > 2*float(tok["MAX_SD_T1"])),
- "artefact audit: <2% of gamed out of range, 0 benign, <=6% alert mass": A["share_gamed_out_of_range"] < 0.02 and A["share_benign_out_of_range"] == 0 and max(A["alert_mass_on_out_of_range"].values()) <= 0.06,
- "P1 held-out D2 AUC below 0.5": L["P1"]["D2"] < 0.5,
- "P1 D2 drop is the largest family drop": L["P1"]["D2_drop"] == max(L[f]["D2_drop"] for f in L),
- "P2 drop smaller than P1 drop": L["P2"]["D2_drop"] < L["P1"]["D2_drop"],
- "P3 label-free AUCs near chance (D1,D4 < 0.55)": L["P3"]["D1"] < 0.55 and L["P3"]["D4"] < 0.55,
- "P2 is D1's easiest family": max(L, key=lambda f: L[f]["D1"]) == "P2",
- "mechanism: gamed rate lower given absent ultimate debtor": M["train_P_gamed_given_ultimate_absent"] < M["train_P_gamed_given_ultimate_present"],
- "mechanism: P1a and P1d AUC < 0.35, P1c > 0.5": M["per_primitive"]["P1a"]["heldout_auc_vs_benign_D2"] < 0.35 and M["per_primitive"]["P1d"]["heldout_auc_vs_benign_D2"] < 0.35 and M["per_primitive"]["P1c"]["heldout_auc_vs_benign_D2"] > 0.5,
- "mechanism: P1a and P1d always remove the ultimate debtor": M["per_primitive"]["P1a"]["ultimate_absent_share"] == 1.0 and M["per_primitive"]["P1d"]["ultimate_absent_share"] == 1.0,
- "P1b rarely selected alone (<30)": M["per_primitive"]["P1b"]["n"] < 30,
- "P2d residual SEL under D4 above 1 but below SEL": 1.0 < SEL["P2d"]["SEL_res"] < SEL["P2d"]["SEL"],
- "P2d most alerted under D4": max(prims, key=lambda p: SEL[p]["detect_rate"]) == "P2d",
- "D5 P2d detection under 10%": SEL5["P2d"]["detect_rate"] < 0.10,
- "P2c detected more by D5 than D4": SEL5["P2c"]["detect_rate"] > SEL["P2c"]["detect_rate"],
- "P3b has the largest SEL": max(prims, key=lambda p: SEL[p]["SEL"]) == "P3b",
- "P3b residual within 0.1 of SEL under both": SEL["P3b"]["SEL"]-SEL["P3b"]["SEL_res"] < 0.1 and SEL["P3b"]["SEL"]-SEL5["P3b"]["SEL_res"] < 0.1,
- "P3c D4 detection rate below 2%": SEL["P3c"]["detect_rate"] < 0.02,
- "D1 most stable under eta among D1/D3/D4; D3 fastest": min(("D1","D3","D4"), key=lambda d: float(tok[f"ETA_{d}_DROP"])) == "D1" and max(("D1","D3","D4"), key=lambda d: float(tok[f"ETA_{d}_DROP"])) == "D3",
- "D5 flat under eta (range < 0.02)": float(tok["ETA_D5_ABSDROP"]) < 0.02,
- "all detectors above chance at highest eta": min(S["eta_sweep"][etas[-1]][d] for d in ("D1","D3","D4","D5")) > 0.5,
- "delta0 near zero (<=0.02) every seed": max(d0) <= 0.02,
- "k ablation monotone for D4": abl["$k=1$"]["D4_auc"] < abl["$k=2$"]["D4_auc"] < abl["$k=3$"]["D4_auc"],
- "grey-box easier than black-box for D4": abl["grey-box"]["D4_auc"] > abl["black-box"]["D4_auc"],
- "P3-only lowest for D4; P1-only lowest for D5; D5 weakest LOO family is P1": min(("P1 only","P2 only","P3 only"), key=lambda s_: abl[s_]["D4_auc"]) == "P3 only" and min(("P1 only","P2 only","P3 only"), key=lambda s_: abl[s_]["D5_auc"]) == "P1 only" and min(L, key=lambda fam: L[fam]["D5"]) == "P1",
- "D5 weaker on P1, stronger on P2 and P3 than D4": abl["P1 only"]["D5_auc"] < abl["P1 only"]["D4_auc"] and abl["P2 only"]["D5_auc"] > abl["P2 only"]["D4_auc"] and abl["P3 only"]["D5_auc"] > abl["P3 only"]["D4_auc"],
+ "XSD 100% valid": V["xsd"]["valid"] == V["xsd"]["checked"] and V["xsd"]["checked"] > 0,
+ "no invariant violations": V["invariants"]["violations_total"] == 0,
+ "artefact: under 0.5% of benign test records out of the benign training range": AU["share_benign_test_out_of_range"] < 0.005,
+ "ceiling consistent with prevalence": abs(c1 - 0.01 / S["prevalence_test"]) < 0.01,
+ "D1 precision about one half (0.45-0.55)": 0.45 <= D["D1"]["precision@0.01"] <= 0.55,
+ "D5 best label-free AUC": max(lf, key=lambda d: D[d]["auc"]) == "D5",
+ "D5 second-best label-free AP": sorted(lf, key=lambda d: -D[d]["ap"])[1] == "D5",
+ "D5 lowest label-free recovery": min(lf, key=lambda d: D[d]["recovery@0.01"]) == "D5",
+ "D2 best AUC and recovery overall": max(D, key=lambda d: D[d]["auc"]) == "D2" and max(D, key=lambda d: D[d]["recovery@0.01"]) == "D2",
+ "D6 recovers less than D2": D["D6"]["recovery@0.01"] < D["D2"]["recovery@0.01"],
+ "alert rates within 0.003 of target": float(tok["ALERT_DEV"]) <= 0.003,
+ "P2d and P2c residual under D2 below 1": SEL["P2d"]["SEL_res_D2"] < 1 and SEL["P2c"]["SEL_res_D2"] < 1,
+ "originals of P2d/P2c alerted under 1% by D2": SEL["P2d"]["orig_detect_rate_D2"] < 0.01 and SEL["P2c"]["orig_detect_rate_D2"] < 0.01,
+ "P2d residual under D1 below 1": SEL["P2d"]["SEL_res_D1"] < 1,
+ "D7 alerts P3c more than D1": SEL["P3c"]["detect_rate_D7"] > SEL["P3c"]["detect_rate_D1"],
+ "P3b attempt-level SEL below 1, per-message above 1": SEL["P3b"]["SEL_attempt"] < 1 < SEL["P3b"]["SEL"],
+ "other primitives: per-message and attempt SEL within 0.06": float(tok["ATT_DIFF_MAX"]) <= 0.06,
+ "LOO P1: D2 held-out at or below 0.52; label-free max under 0.62": L["P1"]["D2"] <= 0.52 and float(tok["P1_LF_MAX"]) < 0.62,
+ "LOO P1 mechanism: gamed rate lower given absent ultimate; P1a/P1d < 0.3 < 0.5 < P1c": mech["train_P_gamed_given_ultimate_absent"] < mech["train_P_gamed_given_ultimate_present"] and mech["P1a_heldout_auc_D2"] < 0.3 and mech["P1d_heldout_auc_D2"] < 0.3 and mech["P1c_heldout_auc_D2"] > 0.5,
+ "LOO P2: supervised drop > 0.25; D1 and D5 above 0.8": L["P2"]["D2_drop"] > 0.25 and L["P2"]["D1"] > 0.8 and L["P2"]["D5"] > 0.8,
+ "LOO P3: message-level detectors <= 0.56, D2 held-out <= 0.52, D7 >= 0.8": max(L["P3"][d] for d in ("D1", "D4", "D5")) <= 0.56 and L["P3"]["D2"] <= 0.52 and L["P3"]["D7"] >= 0.8,
+ "CT: neither contradiction nor family significant for D2 and D5 (p > 0.05)": all(CT["detectors"][d][g]["p_r2"] > 0.05 for d in ("D2", "D5") for g in ("contradiction", "family")),
+ "CT: contradiction R2 below 0.1 for D2 and D5": CT["detectors"]["D2"]["contradiction"]["r2"] < 0.1 and CT["detectors"]["D5"]["contradiction"]["r2"] < 0.1,
+ "CT: cost rho negative for D2": CT["detectors"]["D2"]["cost"]["rho"] < 0,
+ "CT: LOO grouping no better than grand mean for D2": min(CT["detectors"]["D2"]["contradiction"]["loo_mae"], CT["detectors"]["D2"]["family"]["loo_mae"]) >= CT["detectors"]["D2"]["baseline_loo_mae"] - 0.01,
+ "P2c second most recovered by D2; P1b under 10%": sorted(prims, key=lambda p: -SEL[p]["detect_rate_D2"])[1] == "P2c" and SEL["P1b"]["detect_rate_D2"] < 0.10,
+ "P2 easiest for D1 in LOO; P1 and P3 both under 0.6 for D1": max(("P1", "P2", "P3"), key=lambda f: L[f]["D1"]) == "P2" and L["P1"]["D1"] < 0.6 and L["P3"]["D1"] < 0.6,
+ "shift: AUC gap <= 0.03 for shown detectors": float(tok["SH_AUC_GAP_MAX"]) <= 0.03,
+ "shift: D2 A-frozen alert rate > 2%": SH["D2"]["A_to_B"]["alert_rate@0.01"] > 0.02,
+ "prevalence 0.5%: D1 precision above D2": PR["0.005"]["D1"]["precision@0.01"] > PR["0.005"]["D2"]["precision@0.01"],
+ "D5 AUC >= D7 AUC (range statement)": D["D5"]["auc"] >= D["D7"]["auc"],
+ "P3a and P3c keep most lift (min residual > 1.3)": float(tok["P3A_RESMIN"]) > 1.3 and float(tok["P3C_RESMIN"]) > 1.3,
 }
+extra = f"{RES}/../analysis/claims_v3.py" if False else None
 bad = [k for k, v in CLAIMS.items() if not v]
-print(f"filled {len(used)} tokens -> {out}")
 for k, v in CLAIMS.items(): print(("OK   " if v else "FAIL ") + k)
-if bad: raise SystemExit(f"{len(bad)} claim(s) do not hold; fix the prose before building")
+if bad: raise SystemExit(f"{len(bad)} claim(s) fail")
